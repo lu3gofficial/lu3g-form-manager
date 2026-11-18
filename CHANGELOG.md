@@ -1,5 +1,11 @@
 # Registro delle modifiche
 
+## 1.1.0
+- Scheda *Thank you page*: in evidenza la thank you page attuale del form (titolo della pagina, indirizzo con "Apri" e provenienza: impostata in Elementor, impostata qui, tag dinamico di Elementor, indirizzo in Elementor con l'azione Redirect spenta, nessuna).
+- Si cambia scegliendo tra le pagine del sito (in cima quelle di ringraziamento: "grazie", "thank you", "conferma", "ricevuta"...) o scrivendo un indirizzo; pulsante "Torna a quella di Elementor".
+- Funziona anche sui form che in Elementor non hanno l'azione Redirect: scelta qui, la thank you page si attiva senza aprire Elementor.
+- Elenco dei form: nuova colonna *Thank you page*.
+
 ## 1.0.0
 - Prima versione.
 - **Scansione** dei form di Elementor Pro in pagine, articoli, template e popup (`_elementor_data`), con nome, ID, posizione, link a Elementor, numero di invii e stato del webhook; pulsante "Riscansiona".

@@ -141,6 +141,8 @@ final class LU3G_FM_Scanner {
 				'cc'         => $s['email_to_cc'] ?? '',
 				'bcc'        => $s['email_to_bcc'] ?? '',
 				'redirect'   => $s['redirect_to'] ?? '',
+				// Redirect con un tag dinamico di Elementor (es. "URL del post"): l'indirizzo si conosce solo all'invio.
+				'redirect_dynamic' => ! empty( $s['__dynamic__']['redirect_to'] ),
 			),
 		);
 	}

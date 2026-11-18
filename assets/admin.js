@@ -203,12 +203,47 @@
 				stored = data;
 				clean();
 				toast( d.message );
+				// Thank you page: si ricarica per mostrare quella attuale aggiornata.
+				if ( formEl.hasAttribute( 'data-reload-on-save' ) ) {
+					setTimeout( function () {
+						location.reload();
+					}, 700 );
+				}
 			} ).catch( function ( err ) {
 				toast( err.message, true );
 			} ).then( function () {
 				busy( btn, false );
 			} );
 		} );
+
+		// Thank you page: la pagina scelta riempie l'indirizzo; "torna a Elementor" lo svuota.
+		var tyPick = formEl.querySelector( '[data-ty-pick]' );
+		var tyInput = formEl.querySelector( 'input[name="redirect"]' );
+		if ( tyPick && tyInput ) {
+			tyPick.addEventListener( 'change', function () {
+				if ( tyPick.value ) {
+					tyInput.value = tyPick.value;
+					tyInput.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+				}
+			} );
+			tyInput.addEventListener( 'input', function () {
+				var match = Array.prototype.some.call( tyPick.options, function ( o ) {
+					return o.value && o.value === tyInput.value;
+				} );
+				tyPick.value = match ? tyInput.value : '';
+			} );
+		}
+		var tyReset = formEl.querySelector( '[data-ty-reset]' );
+		if ( tyReset && tyInput ) {
+			tyReset.addEventListener( 'click', function () {
+				tyInput.value = '';
+				if ( tyPick ) {
+					tyPick.value = '';
+				}
+				tyInput.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+				toast( 'Premi Salva per confermare.' );
+			} );
+		}
 
 		// Editor: placeholder, anteprima, test.
 		formEl.querySelectorAll( '[data-editor]' ).forEach( function ( ed ) {

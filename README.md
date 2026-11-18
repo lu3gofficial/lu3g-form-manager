@@ -89,7 +89,7 @@ Rispondi a (email LU3G) e nell'URL della thank you page (valori codificati).
 3. **Email LU3G**: scegli "Email LU3G personalizzata", scrivi il corpo cliccando i placeholder, guarda l'anteprima →
    Salva → "Invia email di test" → invia il form dal sito: arriva una sola email (quella LU3G).
 4. **Email Utente**: Email Utente → Attiva → invia il form con il tuo indirizzo nel campo email.
-5. **Thank you page**: imposta un URL (anche con `?nome={{nome}}`) → dopo l'invio il visitatore ci arriva.
+5. **Thank you page**: nell'elenco c'è la colonna con quella di ogni form; nella scheda vedi quella attuale e da dove viene, scegli un'altra pagina dal menu (o un URL, anche con `?nome={{nome}}`) → Salva → dopo l'invio il visitatore ci arriva. "Torna a quella di Elementor" annulla.
 6. **Webhook**: Webhook → "Webhook di questo form" con un URL di prova (es. webhook.site) → Salva → "Invia test" →
    controlla il payload e il log; con un URL che risponde errore vedi "HTTP 500" e puoi usare "Reinvia".
 7. **Richieste**: scheda Richieste → ricerca, date, Dettaglio, Elimina, Esporta CSV (si apre in Excel).

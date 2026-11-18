@@ -205,7 +205,7 @@ final class LU3G_FM_Admin {
 		}
 		$scan = LU3G_FM_Scanner::last_scan();
 		echo '<div class="fm-card__head"><h3>' . esc_html__( 'Form', 'lu3g-form-manager' ) . '</h3><input type="search" class="fm-search" placeholder="' . esc_attr__( 'Cerca per nome o pagina…', 'lu3g-form-manager' ) . '" data-filter-rows></div>';
-		echo '<div class="fm-table-wrap"><table class="fm-table" data-rows><thead><tr><th>' . esc_html__( 'Form', 'lu3g-form-manager' ) . '</th><th>' . esc_html__( 'Si trova in', 'lu3g-form-manager' ) . '</th><th class="num">' . esc_html__( 'Invii', 'lu3g-form-manager' ) . '</th><th>' . esc_html__( 'Webhook', 'lu3g-form-manager' ) . '</th><th></th></tr></thead><tbody>';
+		echo '<div class="fm-table-wrap"><table class="fm-table" data-rows><thead><tr><th>' . esc_html__( 'Form', 'lu3g-form-manager' ) . '</th><th>' . esc_html__( 'Si trova in', 'lu3g-form-manager' ) . '</th><th>' . esc_html__( 'Thank you page', 'lu3g-form-manager' ) . '</th><th class="num">' . esc_html__( 'Invii', 'lu3g-form-manager' ) . '</th><th>' . esc_html__( 'Webhook', 'lu3g-form-manager' ) . '</th><th></th></tr></thead><tbody>';
 		$i = 0;
 		foreach ( $forms as $key => $f ) {
 			$n     = $counts[ $key ]['n'] ?? 0;
@@ -215,7 +215,7 @@ final class LU3G_FM_Admin {
 				: ( ! $st ? '<span class="fm-pill fm-pill--info">' . esc_html__( 'Mai chiamato', 'lu3g-form-manager' ) . '</span>'
 				: ( $st['ok'] ? '<span class="fm-pill fm-pill--ok">OK</span>' : '<span class="fm-pill fm-pill--err">' . esc_html( $st['code'] ? 'HTTP ' . $st['code'] : __( 'Errore', 'lu3g-form-manager' ) ) . '</span>' ) );
 			printf(
-				'<tr style="--i:%1$d" data-text="%2$s"><td><a class="fm-strong" href="%3$s">%4$s</a>%5$s<small class="fm-mono">%6$s</small></td><td>%7$s <a href="%8$s" target="_blank" rel="noopener" class="fm-link">%9$s ↗</a><small>%10$s</small></td><td class="num">%11$d</td><td>%12$s</td><td class="fm-actions"><a class="fm-btn fm-btn--small" href="%3$s">%13$s</a></td></tr>',
+				'<tr style="--i:%1$d" data-text="%2$s"><td><a class="fm-strong" href="%3$s">%4$s</a>%5$s<small class="fm-mono">%6$s</small></td><td>%7$s <a href="%8$s" target="_blank" rel="noopener" class="fm-link">%9$s ↗</a><small>%10$s</small></td><td>%14$s</td><td class="num">%11$d</td><td>%12$s</td><td class="fm-actions"><a class="fm-btn fm-btn--small" href="%3$s">%13$s</a></td></tr>',
 				(int) $i++,
 				esc_attr( strtolower( $f['name'] . ' ' . $f['post_title'] . ' ' . $f['form_id'] ) ),
 				esc_url( self::url( array( 'form' => $key ) ) ),
@@ -228,7 +228,8 @@ final class LU3G_FM_Admin {
 				esc_html( LU3G_FM_Scanner::type_label( $f['post_type'] ) . ( 'publish' !== $f['status'] ? ' · ' . $f['status'] : '' ) ),
 				(int) $n,
 				$badge, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- costruito escapato
-				esc_html__( 'Gestisci', 'lu3g-form-manager' )
+				esc_html__( 'Gestisci', 'lu3g-form-manager' ),
+				self::thank_you_cell( self::thank_you( $f, LU3G_FM_Settings::form( $key ) ) ) // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- costruito escapato
 			);
 		}
 		echo '</tbody></table></div>';
@@ -288,7 +289,7 @@ final class LU3G_FM_Admin {
 		$el      = $form['elementor'];
 		$replace = LU3G_FM_Settings::can_replace_emails();
 
-		echo '<form class="fm-form" data-form-key="' . esc_attr( $key ) . '" data-form autocomplete="off">';
+		echo '<form class="fm-form" data-form-key="' . esc_attr( $key ) . '" data-form autocomplete="off"' . ( 'redirect' === $tab ? ' data-reload-on-save' : '' ) . '>';
 
 		if ( 'admin' === $tab ) {
 			$a = $cfg['admin'];
@@ -342,9 +343,7 @@ final class LU3G_FM_Admin {
 			echo '</div></div>';
 			self::editor( 'user', $u, $form );
 		} elseif ( 'redirect' === $tab ) {
-			echo '<div class="fm-card"><h3>' . esc_html__( 'Thank you page', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Dopo l\'invio il visitatore va a questo indirizzo. Vuoto: vale quello di Elementor (azione Redirect), se c\'è. Puoi aggiungere i valori del form, es. https://sito.it/grazie?nome={{nome}}.', 'lu3g-form-manager' ) . '</p>';
-			self::input( 'redirect', __( 'URL di reindirizzamento', 'lu3g-form-manager' ), $cfg['redirect'], $el['redirect'] ? $el['redirect'] : home_url( '/grazie/' ), true );
-			echo '</div>';
+			self::section_thank_you( $form, $cfg );
 		} elseif ( 'webhook' === $tab ) {
 			$w = $cfg['webhook'];
 			$g = LU3G_FM_Settings::general();
@@ -372,6 +371,121 @@ final class LU3G_FM_Admin {
 		if ( 'webhook' === $tab ) {
 			self::section_webhooks( $key );
 		}
+	}
+
+	/**
+	 * Thank you page effettiva di un form e da dove viene.
+	 *
+	 * @return array{url:string,source:string} source: lu3g (impostata qui), elementor, dynamic (tag dinamico di Elementor),
+	 *                                          inactive (indirizzo in Elementor ma azione Redirect spenta), none.
+	 */
+	public static function thank_you( array $form, array $cfg ) {
+		$el      = $form['elementor'];
+		$has     = in_array( 'redirect', (array) $form['actions'], true );
+		$own     = (string) $cfg['redirect'];
+		if ( '' !== $own ) {
+			return array( 'url' => $own, 'source' => 'lu3g' );
+		}
+		if ( $has && ! empty( $el['redirect_dynamic'] ) ) {
+			return array( 'url' => '', 'source' => 'dynamic' );
+		}
+		if ( $has && '' !== (string) $el['redirect'] ) {
+			return array( 'url' => (string) $el['redirect'], 'source' => 'elementor' );
+		}
+		if ( ! $has && '' !== (string) $el['redirect'] ) {
+			return array( 'url' => (string) $el['redirect'], 'source' => 'inactive' );
+		}
+		return array( 'url' => '', 'source' => 'none' );
+	}
+
+	/** Titolo della pagina del sito a cui punta un URL ('' se l'URL è esterno o non è una pagina). */
+	private static function page_title_of( $url ) {
+		$id = url_to_postid( preg_replace( '/\{\{[a-z0-9_\-]+\}\}/i', '', (string) $url ) );
+		return $id ? get_the_title( $id ) : '';
+	}
+
+	/** Etichetta breve della thank you page per l'elenco dei form. */
+	private static function thank_you_cell( array $ty ) {
+		$labels = array(
+			'lu3g'      => __( 'Impostata qui', 'lu3g-form-manager' ),
+			'elementor' => __( 'Da Elementor', 'lu3g-form-manager' ),
+			'dynamic'   => __( 'Dinamica in Elementor', 'lu3g-form-manager' ),
+			'inactive'  => __( 'In Elementor ma spenta', 'lu3g-form-manager' ),
+			'none'      => __( 'Nessuna', 'lu3g-form-manager' ),
+		);
+		if ( 'none' === $ty['source'] || 'dynamic' === $ty['source'] ) {
+			return '<span class="fm-muted">' . esc_html( $labels[ $ty['source'] ] ) . '</span>';
+		}
+		$title = self::page_title_of( $ty['url'] );
+		$path  = (string) wp_parse_url( $ty['url'], PHP_URL_PATH );
+		$text  = '' !== $title ? $title : ( '' !== $path && '/' !== $path ? $path : $ty['url'] );
+		return '<span class="' . ( 'inactive' === $ty['source'] ? 'fm-muted' : '' ) . '">' . esc_html( wp_html_excerpt( $text, 40, '…' ) ) . '</span><small>' . esc_html( $labels[ $ty['source'] ] ) . '</small>';
+	}
+
+	/** Scheda Thank you page: quella attuale in evidenza, poi la scelta tra le pagine del sito o un indirizzo. */
+	private static function section_thank_you( array $form, array $cfg ) {
+		$ty    = self::thank_you( $form, $cfg );
+		$el    = $form['elementor'];
+		$title = '' !== $ty['url'] ? self::page_title_of( $ty['url'] ) : '';
+		$pills = array(
+			'lu3g'      => array( 'fm-pill--brand', __( 'Impostata qui', 'lu3g-form-manager' ) ),
+			'elementor' => array( 'fm-pill--info', __( 'Impostata in Elementor', 'lu3g-form-manager' ) ),
+			'dynamic'   => array( 'fm-pill--info', __( 'Dinamica in Elementor', 'lu3g-form-manager' ) ),
+			'inactive'  => array( '', __( 'Nessuna attiva', 'lu3g-form-manager' ) ),
+			'none'      => array( '', __( 'Nessuna', 'lu3g-form-manager' ) ),
+		);
+
+		echo '<div class="fm-card fm-ty"><div class="fm-card__head"><h3>' . esc_html__( 'Thank you page attuale', 'lu3g-form-manager' ) . '</h3><span class="fm-pill ' . esc_attr( $pills[ $ty['source'] ][0] ) . '">' . esc_html( $pills[ $ty['source'] ][1] ) . '</span></div>';
+		if ( in_array( $ty['source'], array( 'lu3g', 'elementor' ), true ) ) {
+			echo '<div class="fm-ty__current"><div class="fm-ty__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><div class="fm-ty__text">';
+			echo '<strong>' . esc_html( '' !== $title ? $title : __( 'Indirizzo personalizzato', 'lu3g-form-manager' ) ) . '</strong>';
+			echo '<a href="' . esc_url( preg_replace( '/\{\{[a-z0-9_\-]+\}\}/i', '', $ty['url'] ) ) . '" target="_blank" rel="noopener" class="fm-mono">' . esc_html( $ty['url'] ) . ' ↗</a></div></div>';
+			if ( 'lu3g' === $ty['source'] && '' !== (string) $el['redirect'] ) {
+				/* translators: %s: URL impostato in Elementor */
+				echo '<p class="fm-note">' . esc_html( sprintf( __( 'In Elementor c\'è %s, ma vale quella impostata qui.', 'lu3g-form-manager' ), $el['redirect'] ) ) . '</p>';
+			}
+		} elseif ( 'dynamic' === $ty['source'] ) {
+			echo '<p class="fm-help">' . esc_html__( 'In Elementor l\'indirizzo è un tag dinamico (es. "URL del post"): si conosce solo al momento dell\'invio. Puoi sostituirlo qui sotto con un indirizzo fisso.', 'lu3g-form-manager' ) . '</p>';
+		} elseif ( 'inactive' === $ty['source'] ) {
+			/* translators: %s: URL impostato in Elementor */
+			echo '<p class="fm-help">' . esc_html( sprintf( __( 'In Elementor è scritto %s, ma l\'azione "Redirect" non è attiva: dopo l\'invio il visitatore resta sulla pagina e vede il messaggio di conferma. Scegline una qui sotto per attivarla senza aprire Elementor.', 'lu3g-form-manager' ), $el['redirect'] ) ) . '</p>';
+		} else {
+			echo '<p class="fm-help">' . esc_html__( 'Dopo l\'invio il visitatore resta sulla pagina e vede il messaggio di conferma del form. Scegli una pagina qui sotto per mandarlo a una thank you page.', 'lu3g-form-manager' ) . '</p>';
+		}
+		echo '</div>';
+
+		// Pagine del sito, con in cima quelle che sembrano di ringraziamento.
+		$pages   = get_pages( array( 'post_status' => 'publish', 'number' => 500, 'sort_column' => 'post_title' ) );
+		$suggest = array();
+		$others  = array();
+		foreach ( (array) $pages as $p ) {
+			$row = array( 'url' => get_permalink( $p ), 'title' => '' !== $p->post_title ? $p->post_title : '#' . $p->ID );
+			if ( preg_match( '/grazi|thank|conferm|ricevut|success|inviat/i', $p->post_title . ' ' . $p->post_name ) ) {
+				$suggest[] = $row;
+			} else {
+				$others[] = $row;
+			}
+		}
+
+		echo '<div class="fm-card"><h3>' . esc_html__( 'Cambia thank you page', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Scegli una pagina del sito o scrivi un indirizzo. Puoi aggiungere i valori del form, es. ?nome={{nome}}. Vale da subito, senza aprire Elementor.', 'lu3g-form-manager' ) . '</p>';
+		echo '<div class="fm-grid"><label class="fm-field fm-field--wide"><span>' . esc_html__( 'Pagina del sito', 'lu3g-form-manager' ) . '</span><select data-ty-pick><option value="">' . esc_html__( '— Scegli una pagina —', 'lu3g-form-manager' ) . '</option>';
+		foreach ( array( __( 'Pagine di ringraziamento', 'lu3g-form-manager' ) => $suggest, __( 'Tutte le pagine', 'lu3g-form-manager' ) => $others ) as $group => $list ) {
+			if ( ! $list ) {
+				continue;
+			}
+			echo '<optgroup label="' . esc_attr( $group ) . '">';
+			foreach ( $list as $row ) {
+				printf( '<option value="%1$s" %2$s>%3$s</option>', esc_attr( $row['url'] ), selected( $ty['url'], $row['url'], false ), esc_html( $row['title'] . ' — ' . (string) wp_parse_url( $row['url'], PHP_URL_PATH ) ) );
+			}
+			echo '</optgroup>';
+		}
+		echo '</select></label>';
+		self::input( 'redirect', __( 'Indirizzo della thank you page', 'lu3g-form-manager' ), $cfg['redirect'], '' !== (string) $el['redirect'] ? $el['redirect'] : home_url( '/grazie/' ), true );
+		echo '</div>';
+		if ( '' !== $cfg['redirect'] ) {
+			echo '<div class="fm-inline"><button type="button" class="fm-btn" data-ty-reset>' . esc_html( '' !== (string) $el['redirect'] ? __( 'Torna a quella di Elementor', 'lu3g-form-manager' ) : __( 'Togli la thank you page', 'lu3g-form-manager' ) ) . '</button></div>';
+		}
+		echo '</div>';
 	}
 
 	/** Editor del corpo con placeholder cliccabili, anteprima live e invio di test. */

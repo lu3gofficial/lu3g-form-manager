@@ -3,7 +3,7 @@
  * Plugin Name:       LU3G Form Manager
  * Plugin URI:        https://github.com/lu3gofficial/lu3g-form-manager
  * Description:       Tutti i form di Elementor Pro in un unico pannello: destinatari, thank you page e webhook senza aprire Elementor, raccolta delle richieste con export CSV, log dei webhook ed email personalizzate con anteprima.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Requires Plugins:  elementor
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LU3G_FM_VERSION', '1.0.0' );
+define( 'LU3G_FM_VERSION', '1.1.0' );
 define( 'LU3G_FM_FILE', __FILE__ );
 define( 'LU3G_FM_URL', plugin_dir_url( __FILE__ ) );
 define( 'LU3G_FM_PATH', plugin_dir_path( __FILE__ ) );
