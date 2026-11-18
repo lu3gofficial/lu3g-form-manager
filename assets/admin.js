@@ -194,6 +194,21 @@
 		};
 		syncMode();
 
+		var modeSwitch = formEl.querySelector( '[data-name="admin_mode_switch"]' );
+		var modeInput = formEl.querySelector( '[data-mode-input]' );
+		if ( modeSwitch && modeInput ) {
+			modeSwitch.addEventListener( 'click', function () {
+				// Questo ascoltatore parte prima di quello del form (watchDirty) che inverte aria-checked: qui è ancora il vecchio stato.
+				var on = modeSwitch.getAttribute( 'aria-checked' ) !== 'true';
+				modeInput.value = on ? 'lu3g' : 'elementor';
+				var ed = formEl.querySelector( '[data-editor="admin"]' );
+				if ( ed ) {
+					ed.toggleAttribute( 'data-needs-lu3g', ! on );
+					ed.querySelector( '[data-lu3g-hint]' ).hidden = on;
+				}
+			} );
+		}
+
 		formEl.addEventListener( 'submit', function ( e ) {
 			e.preventDefault();
 			var btn = formEl.querySelector( '[data-save]' );
@@ -331,6 +346,116 @@
 					}
 				} ).then( function () {
 					busy( hookTest, false );
+				} );
+			} );
+		}
+	}
+
+	/* ------------------------------------------------------------ impostazioni di Elementor del form */
+
+	var elForm = page.querySelector( '[data-el-form]' );
+	if ( elForm ) {
+		var elKey = elForm.getAttribute( 'data-form-key' );
+		var readEl = function () {
+			var out = {};
+			elForm.querySelectorAll( '[data-el]' ).forEach( function ( el ) {
+				out[ el.getAttribute( 'data-el' ) ] = el.value;
+			} );
+			elForm.querySelectorAll( '[data-el-list]' ).forEach( function ( el ) {
+				var k = el.getAttribute( 'data-el-list' );
+				out[ k ] = out[ k ] || [];
+				if ( el.checked ) {
+					out[ k ].push( el.value );
+				}
+			} );
+			elForm.querySelectorAll( '[data-el-bool]' ).forEach( function ( el ) {
+				out[ el.getAttribute( 'data-el-bool' ) ] = el.getAttribute( 'aria-checked' ) === 'true';
+			} );
+			return out;
+		};
+		var initial = readEl();
+		var cleanEl = watchDirty( elForm );
+		elForm.addEventListener( 'submit', function ( e ) {
+			e.preventDefault();
+			var now = readEl();
+			var changes = {};
+			// Solo i campi cambiati: un campo dinamico di Elementor non toccato resta dinamico.
+			Object.keys( now ).forEach( function ( k ) {
+				if ( JSON.stringify( now[ k ] ) !== JSON.stringify( initial[ k ] ) ) {
+					changes[ k ] = now[ k ];
+				}
+			} );
+			if ( ! Object.keys( changes ).length ) {
+				cleanEl();
+				toast( 'Nessuna modifica da salvare.' );
+				return;
+			}
+			var btn = elForm.querySelector( '[type=submit]' );
+			busy( btn, true );
+			call( 'elementor_save', { changes: changes }, { form: elKey } ).then( function ( d ) {
+				cleanEl();
+				toast( d.message );
+				setTimeout( function () {
+					location.reload();
+				}, 800 );
+			} ).catch( function ( err ) {
+				toast( err.message, true );
+				busy( btn, false );
+			} );
+		} );
+		var undo = elForm.querySelector( '[data-el-undo]' );
+		if ( undo ) {
+			undo.addEventListener( 'click', function () {
+				if ( ! window.confirm( 'Rimettere le impostazioni del form come erano prima dell\'ultima modifica?' ) ) {
+					return;
+				}
+				call( 'elementor_undo', {}, { form: elKey } ).then( function ( d ) {
+					toast( d.message );
+					setTimeout( function () {
+						location.reload();
+					}, 800 );
+				} ).catch( function ( err ) {
+					toast( err.message, true );
+				} );
+			} );
+		}
+	}
+
+	/* ------------------------------------------------------------ thank you page (scritta in Elementor) */
+
+	var tyForm = page.querySelector( '[data-ty-form]' );
+	if ( tyForm ) {
+		var tyKey = tyForm.getAttribute( 'data-form-key' );
+		var pick = tyForm.querySelector( '[data-ty-pick]' );
+		var urlIn = tyForm.querySelector( 'input[name="redirect"]' );
+		pick.addEventListener( 'change', function () {
+			if ( pick.value ) {
+				urlIn.value = pick.value;
+			}
+		} );
+		urlIn.addEventListener( 'input', function () {
+			var match = Array.prototype.some.call( pick.options, function ( o ) {
+				return o.value && o.value === urlIn.value;
+			} );
+			pick.value = match ? urlIn.value : '';
+		} );
+		var tyDone = function ( d ) {
+			toast( d.message );
+			setTimeout( function () {
+				location.reload();
+			}, 800 );
+		};
+		tyForm.addEventListener( 'submit', function ( e ) {
+			e.preventDefault();
+			call( 'ty_save', { url: urlIn.value }, { form: tyKey } ).then( tyDone ).catch( function ( err ) {
+				toast( err.message, true );
+			} );
+		} );
+		var rm = tyForm.querySelector( '[data-ty-remove]' );
+		if ( rm ) {
+			rm.addEventListener( 'click', function () {
+				call( 'ty_remove', {}, { form: tyKey } ).then( tyDone ).catch( function ( err ) {
+					toast( err.message, true );
 				} );
 			} );
 		}

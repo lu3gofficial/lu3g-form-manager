@@ -25,7 +25,19 @@ lu3g-form-manager/
 └─ assets/                 CSS/JS dell'interfaccia, logo e icona LU3G, font Manrope (SIL OFL)
 ```
 
-## Come si aggancia a Elementor Pro (senza toccare `_elementor_data`)
+## Impostazioni di Elementor (dalla 1.2.0)
+La scheda **Impostazioni Elementor** legge e modifica le impostazioni vere del form in `_elementor_data`: nome del modulo,
+azioni dopo l'invio, Email, Email 2, Webhook; la scheda **Thank you page** scrive il Redirect. Il salvataggio passa da
+`\Elementor\Plugin::$instance->documents->get( $post_id )->save( [ 'elements' => … ] )` (come l'editor: CSS e cache
+rigenerati); si inviano solo i campi cambiati; una copia delle impostazioni precedenti resta nel meta `_lu3g_fm_backup`
+del post ("Annulla l'ultima modifica"). Un form in un template globale cambia ovunque è usato, come in Elementor.
+
+## Archivio degli invii di Elementor
+Elementor Pro salva ogni invio in `{prefix}e_submissions` e `{prefix}e_submissions_values` (post_id + element_id del form).
+La scheda Richieste lo legge (anche gli invii di prima dell'installazione) e "Sposta nel cestino" usa lo stato `trash` di
+Elementor. Se l'archivio non c'è, si vedono le richieste raccolte dal plugin.
+
+## Come si aggancia a Elementor Pro (invio)
 Flusso di un invio in Elementor Pro (verificato sul codice della 4.4, `Ajax_Handler::ajax_send_form`):
 validazione → `elementor_pro/forms/record/actions_before` → `elementor_pro/forms/submit_actions` (dalla 4.0.3) →
 azioni (email, email2, redirect, webhook…) → `elementor_pro/forms/new_record` → risposta.
@@ -84,15 +96,16 @@ Rispondi a (email LU3G) e nell'URL della thank you page (valori codificati).
 ## Come provarlo
 1. **Scansione**: LU3G → Form (o LU3G Form) → l'elenco mostra i form con pagina, link a Elementor e invii; crea un form
    nuovo in Elementor e premi "Riscansiona".
-2. **Override Email Admin**: scheda del form → Email Admin → "Email di Elementor", A = un tuo indirizzo, Oggetto con
-   `{{nome}}` → Salva → invia il form dal sito → l'email arriva a te con l'oggetto nuovo.
-3. **Email LU3G**: scegli "Email LU3G personalizzata", scrivi il corpo cliccando i placeholder, guarda l'anteprima →
-   Salva → "Invia email di test" → invia il form dal sito: arriva una sola email (quella LU3G).
-4. **Email Utente**: Email Utente → Attiva → invia il form con il tuo indirizzo nel campo email.
+2. **Impostazioni Elementor**: scheda del form → cambia nome, A, Oggetto, Cc… → "Salva in Elementor" → apri il form in
+   Elementor: i valori sono quelli nuovi; "Annulla l'ultima modifica" li rimette com'erano.
+3. **Email LU3G**: Email personalizzate → accendi l'interruttore, scrivi il corpo cliccando i placeholder, guarda
+   l'anteprima → Salva → "Invia email di test" → invia il form dal sito: arriva una sola email (quella LU3G).
+4. **Email Utente**: Email personalizzate → Email di conferma → Attiva → invia il form con il tuo indirizzo.
 5. **Thank you page**: nell'elenco c'è la colonna con quella di ogni form; nella scheda vedi quella attuale e da dove viene, scegli un'altra pagina dal menu (o un URL, anche con `?nome={{nome}}`) → Salva → dopo l'invio il visitatore ci arriva. "Torna a quella di Elementor" annulla.
 6. **Webhook**: Webhook → "Webhook di questo form" con un URL di prova (es. webhook.site) → Salva → "Invia test" →
    controlla il payload e il log; con un URL che risponde errore vedi "HTTP 500" e puoi usare "Reinvia".
-7. **Richieste**: scheda Richieste → ricerca, date, Dettaglio, Elimina, Esporta CSV (si apre in Excel).
+7. **Richieste**: scheda Richieste → "Archivio di Elementor" mostra anche gli invii vecchi; ricerca, date, Dettaglio,
+   Esporta CSV (si apre in Excel).
 8. **Retention**: Impostazioni → mesi; le richieste più vecchie spariscono al passaggio giornaliero del cron.
 9. **Multisite**: attiva in rete, crea un sito nuovo (le tabelle compaiono), imposta i valori di rete e blocca un campo,
    controlla nelle Impostazioni del sito le etichette; Network Admin → LU3G Form → "Riscansiona la rete", Richieste,

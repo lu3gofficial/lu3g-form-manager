@@ -146,7 +146,7 @@ final class LU3G_FM_Network {
 			$cache  = get_option( LU3G_FM_Scanner::CACHE );
 			$forms  = is_array( $cache ) && isset( $cache['forms'] ) ? $cache['forms'] : null;
 			$tables = self::has_tables();
-			$counts = $tables ? LU3G_FM_DB::counts() : array();
+			$counts = $tables ? LU3G_FM_DB::counts_any() : array();
 			$status = $tables ? LU3G_FM_DB::webhook_status() : array();
 			if ( null === $forms ) {
 				printf( '<tr data-text="%1$s"><td>%2$s</td><td colspan="5" class="fm-muted">%3$s</td></tr>', esc_attr( strtolower( $name ) ), esc_html( $name ), esc_html__( 'Non ancora scansionato: premi "Riscansiona la rete".', 'lu3g-form-manager' ) );
@@ -236,7 +236,7 @@ final class LU3G_FM_Network {
 			}
 			switch_to_blog( $id );
 			if ( self::has_tables() ) {
-				$res    = LU3G_FM_DB::query_submissions( array( 'search' => $search, 'per_page' => $limit, 'page' => 1 ) );
+				$res    = LU3G_FM_DB::query_any( array( 'search' => $search, 'per_page' => $limit, 'page' => 1 ) );
 				$total += $res['total'];
 				foreach ( $res['rows'] as $r ) {
 					$r['site']    = $name;

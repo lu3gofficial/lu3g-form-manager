@@ -131,9 +131,21 @@ final class LU3G_FM_Runtime {
 			}
 
 			if ( 'lu3g' === $cfg['admin']['mode'] && LU3G_FM_Settings::can_replace_emails() ) {
+				// Destinatari e mittente: quelli dell'Email di Elementor (modificabili nella scheda Impostazioni Elementor);
+				// dal plugin arrivano oggetto e testo. I vecchi valori della 1.0/1.1, se ancora salvati, hanno la precedenza.
+				$s     = (array) $record->get( 'form_settings' );
 				$admin = $cfg['admin'];
+				$map   = array( 'to' => 'email_to', 'from_email' => 'email_from', 'from_name' => 'email_from_name', 'reply_to' => 'email_reply_to', 'cc' => 'email_to_cc', 'bcc' => 'email_to_bcc' );
+				foreach ( $map as $ours => $theirs ) {
+					if ( '' === trim( (string) $admin[ $ours ] ) && ! empty( $s[ $theirs ] ) ) {
+						$admin[ $ours ] = self::from_elementor( $s[ $theirs ] );
+					}
+				}
+				if ( '' === trim( (string) $admin['subject'] ) && ! empty( $s['email_subject'] ) ) {
+					$admin['subject'] = self::from_elementor( $s['email_subject'] );
+				}
 				if ( '' === trim( $admin['to'] ) ) {
-					$admin['to'] = '' !== trim( (string) $form['elementor']['to'] ) ? self::from_elementor( $form['elementor']['to'] ) : get_option( 'admin_email' );
+					$admin['to'] = get_option( 'admin_email' );
 				}
 				$sent = LU3G_FM_Emails::send( $admin, $ctx, 'admin' );
 				if ( is_wp_error( $sent ) && current_user_can( 'manage_options' ) ) {

@@ -144,7 +144,7 @@ final class LU3G_FM_Admin {
 
 	private static function page_main( $tab ) {
 		$forms  = LU3G_FM_Scanner::forms();
-		$counts = LU3G_FM_DB::counts();
+		$counts = LU3G_FM_DB::counts_any();
 		$total  = array_sum( wp_list_pluck( $counts, 'n' ) );
 		$status = LU3G_FM_DB::webhook_status();
 		$errors = count(
@@ -240,10 +240,11 @@ final class LU3G_FM_Admin {
 	/* ------------------------------------------------------------------ scheda del form */
 
 	private static function page_form( array $form ) {
-		$key  = $form['key'];
-		$cfg  = LU3G_FM_Settings::form( $key );
-		$tab  = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'admin'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$cnt  = LU3G_FM_DB::counts()[ $key ]['n'] ?? 0;
+		$key = $form['key'];
+		$cfg = LU3G_FM_Settings::form( $key );
+		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'settings'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$tab = in_array( $tab, array( 'admin', 'user' ), true ) ? 'emails' : $tab; // indirizzi della 1.0/1.1
+		$cnt = LU3G_FM_DB::counts_any()[ $key ]['n'] ?? 0;
 
 		self::hero(
 			$form['name'],
@@ -254,19 +255,19 @@ final class LU3G_FM_Admin {
 				'<a href="' . esc_url( LU3G_FM_Scanner::edit_url( $form['post_id'] ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'apri in Elementor', 'lu3g-form-manager' ) . ' ↗</a>'
 			),
 			array(
-				__( 'Invii', 'lu3g-form-manager' )        => $cnt,
-				__( 'ID elemento', 'lu3g-form-manager' )  => $form['element_id'],
-				__( 'Campi', 'lu3g-form-manager' )        => count( $form['fields'] ),
+				__( 'Invii', 'lu3g-form-manager' )       => $cnt,
+				__( 'ID elemento', 'lu3g-form-manager' ) => $form['element_id'],
+				__( 'Campi', 'lu3g-form-manager' )       => count( $form['fields'] ),
 			),
 			'<a class="fm-btn fm-btn--light" href="' . esc_url( self::url() ) . '">← ' . esc_html__( 'Tutti i form', 'lu3g-form-manager' ) . '</a>'
 		);
 
 		self::tabs(
 			array(
-				'admin'       => __( 'Email Admin', 'lu3g-form-manager' ),
-				'user'        => __( 'Email Utente', 'lu3g-form-manager' ),
+				'settings'    => __( 'Impostazioni Elementor', 'lu3g-form-manager' ),
 				'redirect'    => __( 'Thank you page', 'lu3g-form-manager' ),
-				'webhook'     => __( 'Webhook', 'lu3g-form-manager' ),
+				'emails'      => __( 'Email personalizzate', 'lu3g-form-manager' ),
+				'webhook'     => __( 'Webhook LU3G', 'lu3g-form-manager' ),
 				'submissions' => __( 'Richieste', 'lu3g-form-manager' ),
 			),
 			$tab,
@@ -277,79 +278,63 @@ final class LU3G_FM_Admin {
 			self::section_submissions( $key );
 			return;
 		}
+		if ( 'settings' === $tab ) {
+			self::section_elementor( $form );
+			return;
+		}
+		if ( 'redirect' === $tab ) {
+			self::section_thank_you( $form, $cfg );
+			return;
+		}
 
-		$emails  = array_values(
-			array_filter(
-				$form['fields'],
-				function ( $f ) {
-					return 'email' === $f['type'];
-				}
-			)
-		);
-		$el      = $form['elementor'];
+		$emails  = self::email_fields( $form );
 		$replace = LU3G_FM_Settings::can_replace_emails();
 
-		echo '<form class="fm-form" data-form-key="' . esc_attr( $key ) . '" data-form autocomplete="off"' . ( 'redirect' === $tab ? ' data-reload-on-save' : '' ) . '>';
+		echo '<form class="fm-form" data-form-key="' . esc_attr( $key ) . '" data-form autocomplete="off">';
 
-		if ( 'admin' === $tab ) {
-			$a = $cfg['admin'];
-			echo '<div class="fm-card"><h3>' . esc_html__( 'Quale email riceve l\'amministratore', 'lu3g-form-manager' ) . '</h3>';
-			echo '<div class="fm-seg" role="radiogroup">';
-			self::radio( 'admin[mode]', 'elementor', $a['mode'], __( 'Email di Elementor', 'lu3g-form-manager' ), __( 'Cambio solo destinatari, oggetto e mittente; il testo resta quello di Elementor.', 'lu3g-form-manager' ) );
-			self::radio( 'admin[mode]', 'lu3g', $a['mode'], __( 'Email LU3G personalizzata', 'lu3g-form-manager' ), $replace ? __( 'Testo e grafica decisi qui, col template LU3G e l\'anteprima.', 'lu3g-form-manager' ) : __( 'Serve Elementor Pro 4.0.3 o successivo.', 'lu3g-form-manager' ), ! $replace );
-			echo '</div>';
-			if ( ! in_array( 'email', $form['actions'], true ) ) {
-				echo '<p class="fm-note">' . esc_html__( 'In Elementor questo form non ha l\'azione "Email": gli override dell\'email di Elementor non hanno effetto finché non la aggiungi (o usi l\'email LU3G).', 'lu3g-form-manager' ) . '</p>';
+		if ( 'emails' === $tab ) {
+			$a  = $cfg['admin'];
+			$el = LU3G_FM_Elementor_Editor::get( $form['post_id'], $form['element_id'] );
+			$v  = $el ? $el['values'] : array();
+			echo '<div class="fm-card fm-card--switch"><div><h3>' . esc_html__( 'Email all\'amministratore col template LU3G', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Al posto dell\'azione "Email" di Elementor parte un\'email con la grafica LU3G e il testo scritto qui. Destinatari e mittente restano quelli dell\'Email di Elementor (scheda Impostazioni Elementor).', 'lu3g-form-manager' ) . '</p>';
+			if ( $v ) {
+				/* translators: 1: destinatari, 2: mittente */
+				echo '<p class="fm-note">' . esc_html( sprintf( __( 'A: %1$s · Da: %2$s', 'lu3g-form-manager' ), $v['email_to'], $v['email_from_name'] . ' <' . $v['email_from'] . '>' ) ) . ( $v['email_to_cc'] ? esc_html( ' · Cc: ' . $v['email_to_cc'] ) : '' ) . ( $v['email_to_bcc'] ? esc_html( ' · Ccn: ' . $v['email_to_bcc'] ) : '' ) . '</p>';
 			}
 			echo '</div>';
-
-			echo '<div class="fm-card"><h3>' . esc_html__( 'Destinatari e mittente', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Lascia vuoto per usare il valore impostato in Elementor (lo vedi in grigio). Più indirizzi separati da virgola; puoi usare i placeholder, es. {{email}}.', 'lu3g-form-manager' ) . '</p><div class="fm-grid">';
-			self::input( 'admin[to]', __( 'A', 'lu3g-form-manager' ), $a['to'], $el['to'] ? $el['to'] : get_option( 'admin_email' ) );
-			self::input( 'admin[subject]', __( 'Oggetto', 'lu3g-form-manager' ), $a['subject'], $el['subject'] ? $el['subject'] : 'New message from "' . get_bloginfo( 'name' ) . '"', true );
-			self::input( 'admin[from_email]', __( 'Da (email)', 'lu3g-form-manager' ), $a['from_email'], $el['from_email'] );
-			self::input( 'admin[from_name]', __( 'Da (nome)', 'lu3g-form-manager' ), $a['from_name'], $el['from_name'] ? $el['from_name'] : get_bloginfo( 'name' ) );
-			echo '<label class="fm-field"><span>' . esc_html__( 'Rispondi a', 'lu3g-form-manager' ) . '</span><select name="admin[reply_to]" data-reply>';
-			echo '<option value="">' . esc_html__( 'Come in Elementor', 'lu3g-form-manager' ) . ( $el['reply_to'] ? ' (' . esc_html( $el['reply_to'] ) . ')' : '' ) . '</option>';
-			foreach ( $emails as $f ) {
-				printf( '<option value="%1$s" %2$s>%3$s</option>', esc_attr( $f['id'] ), selected( $a['reply_to'], $f['id'], false ), esc_html( sprintf( /* translators: %s: etichetta del campo */ __( 'Campo «%s»', 'lu3g-form-manager' ), $f['label'] ) ) );
-			}
-			$custom = '' !== $a['reply_to'] && ! in_array( $a['reply_to'], wp_list_pluck( $emails, 'id' ), true );
-			echo '<option value="__custom" ' . selected( $custom, true, false ) . ' data-lu3g-only>' . esc_html__( 'Un indirizzo (solo email LU3G)…', 'lu3g-form-manager' ) . '</option></select>';
-			echo '<input type="text" name="admin[reply_to_custom]" value="' . esc_attr( $custom ? $a['reply_to'] : '' ) . '" placeholder="info@cliente.it" data-reply-custom' . ( $custom ? '' : ' hidden' ) . '></label>';
-			self::input( 'admin[cc]', __( 'Cc', 'lu3g-form-manager' ), $a['cc'], $el['cc'] );
-			self::input( 'admin[bcc]', __( 'Ccn', 'lu3g-form-manager' ), $a['bcc'], $el['bcc'] );
-			echo '</div></div>';
-
-			self::editor( 'admin', $a, $form );
-		} elseif ( 'user' === $tab ) {
-			$u = $cfg['user'];
-			echo '<div class="fm-card fm-card--switch"><div><h3>' . esc_html__( 'Email di conferma a chi compila', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Parte dopo ogni invio verso l\'indirizzo scritto nel form. Se il form ha l\'azione "Email 2" di Elementor, questa la sostituisce.', 'lu3g-form-manager' ) . '</p></div>';
-			self::switch_html( 'user[enabled]', __( 'Attiva', 'lu3g-form-manager' ), $u['enabled'], ! $replace );
+			echo '<input type="hidden" name="admin[mode]" value="' . esc_attr( $a['mode'] ) . '" data-mode-input>';
+			self::switch_html( 'admin_mode_switch', __( 'Usa l\'email LU3G al posto dell\'Email di Elementor', 'lu3g-form-manager' ), 'lu3g' === $a['mode'], ! $replace );
 			echo '</div>';
 			if ( ! $replace ) {
 				echo '<p class="fm-note">' . esc_html__( 'Serve Elementor Pro 4.0.3 o successivo.', 'lu3g-form-manager' ) . '</p>';
 			}
-			echo '<div class="fm-card"><h3>' . esc_html__( 'Destinatario e mittente', 'lu3g-form-manager' ) . '</h3><div class="fm-grid">';
+			echo '<div class="fm-card"><div class="fm-grid">';
+			self::input( 'admin[subject]', __( 'Oggetto (vuoto: quello dell\'Email di Elementor)', 'lu3g-form-manager' ), $a['subject'], $v['email_subject'] ?? '', true );
+			echo '</div></div>';
+			self::editor( 'admin', $a, $form );
+
+			$u = $cfg['user'];
+			echo '<div class="fm-card fm-card--switch"><div><h3>' . esc_html__( 'Email di conferma a chi compila, col template LU3G', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Parte dopo ogni invio verso l\'indirizzo scritto nel form, al posto dell\'azione "Email 2" di Elementor.', 'lu3g-form-manager' ) . '</p></div>';
+			self::switch_html( 'user[enabled]', __( 'Attiva', 'lu3g-form-manager' ), $u['enabled'], ! $replace );
+			echo '</div><div class="fm-card"><div class="fm-grid">';
 			echo '<label class="fm-field"><span>' . esc_html__( 'Invia all\'indirizzo del campo', 'lu3g-form-manager' ) . '</span><select name="user[to_field]">';
 			echo '<option value="">' . esc_html__( 'Il primo campo email del form', 'lu3g-form-manager' ) . '</option>';
 			foreach ( $emails as $f ) {
 				printf( '<option value="%1$s" %2$s>%3$s</option>', esc_attr( $f['id'] ), selected( $u['to_field'], $f['id'], false ), esc_html( $f['label'] ) );
 			}
 			echo '</select>' . ( $emails ? '' : '<small class="fm-warn">' . esc_html__( 'Il form non ha campi di tipo email: l\'email di conferma non può partire.', 'lu3g-form-manager' ) . '</small>' ) . '</label>';
-			self::input( 'user[subject]', __( 'Oggetto', 'lu3g-form-manager' ), $u['subject'], 'Abbiamo ricevuto la tua richiesta', true );
-			self::input( 'user[from_email]', __( 'Da (email)', 'lu3g-form-manager' ), $u['from_email'], get_option( 'admin_email' ) );
-			self::input( 'user[from_name]', __( 'Da (nome)', 'lu3g-form-manager' ), $u['from_name'], get_bloginfo( 'name' ) );
-			self::input( 'user[reply_to]', __( 'Rispondi a', 'lu3g-form-manager' ), $u['reply_to'], get_option( 'admin_email' ) );
+			self::input( 'user[subject]', __( 'Oggetto', 'lu3g-form-manager' ), $u['subject'], $v['email_subject_2'] ?? 'Abbiamo ricevuto la tua richiesta', true );
+			self::input( 'user[from_email]', __( 'Da (email)', 'lu3g-form-manager' ), $u['from_email'], $v['email_from_2'] ?? get_option( 'admin_email' ) );
+			self::input( 'user[from_name]', __( 'Da (nome)', 'lu3g-form-manager' ), $u['from_name'], $v['email_from_name_2'] ?? get_bloginfo( 'name' ) );
+			self::input( 'user[reply_to]', __( 'Rispondi a', 'lu3g-form-manager' ), $u['reply_to'], $v['email_reply_to_2'] ?? '' );
 			echo '</div></div>';
 			self::editor( 'user', $u, $form );
-		} elseif ( 'redirect' === $tab ) {
-			self::section_thank_you( $form, $cfg );
 		} elseif ( 'webhook' === $tab ) {
 			$w = $cfg['webhook'];
 			$g = LU3G_FM_Settings::general();
-			echo '<div class="fm-card"><h3>' . esc_html__( 'Webhook', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'A ogni invio i dati partono in JSON verso questo URL (Make, Zapier, n8n, un CRM...). Il webhook di Elementor, se c\'è, resta com\'è.', 'lu3g-form-manager' ) . '</p>';
+			echo '<div class="fm-card"><h3>' . esc_html__( 'Webhook LU3G', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'A ogni invio i dati partono in JSON verso questo URL, con il log delle chiamate e il reinvio. È in aggiunta al webhook di Elementor (scheda Impostazioni Elementor): se usi questo, puoi togliere quello.', 'lu3g-form-manager' ) . '</p>';
 			echo '<div class="fm-seg" role="radiogroup">';
-			self::radio( 'webhook[mode]', 'default', $w['mode'], __( 'Webhook di default', 'lu3g-form-manager' ), $g['webhook_enabled'] && $g['webhook_url'] ? $g['webhook_url'] : __( 'Nessuno impostato (scheda Impostazioni).', 'lu3g-form-manager' ) );
+			self::radio( 'webhook[mode]', 'default', $w['mode'], __( 'Webhook di default', 'lu3g-form-manager' ), $g['webhook_enabled'] && $g['webhook_url'] ? $g['webhook_url'] : __( 'Nessuno impostato (Impostazioni generali).', 'lu3g-form-manager' ) );
 			self::radio( 'webhook[mode]', 'custom', $w['mode'], __( 'Webhook di questo form', 'lu3g-form-manager' ), __( 'URL e metodo qui sotto.', 'lu3g-form-manager' ) );
 			self::radio( 'webhook[mode]', 'off', $w['mode'], __( 'Disattivato', 'lu3g-form-manager' ), __( 'Nessuna chiamata per questo form.', 'lu3g-form-manager' ) );
 			echo '</div><div class="fm-grid" data-show-if="webhook[mode]=custom">';
@@ -371,6 +356,106 @@ final class LU3G_FM_Admin {
 		if ( 'webhook' === $tab ) {
 			self::section_webhooks( $key );
 		}
+	}
+
+	private static function email_fields( array $form ) {
+		return array_values(
+			array_filter(
+				$form['fields'],
+				function ( $f ) {
+					return 'email' === $f['type'];
+				}
+			)
+		);
+	}
+
+	/* ------------------------------------------------------------------ impostazioni di Elementor */
+
+	/** Scheda "Impostazioni Elementor": tutte le impostazioni del form, lette da Elementor e salvate in Elementor. */
+	private static function section_elementor( array $form ) {
+		$data = LU3G_FM_Elementor_Editor::get( $form['post_id'], $form['element_id'] );
+		if ( ! $data ) {
+			echo '<div class="fm-alert"><strong>' . esc_html__( 'Impostazioni non leggibili', 'lu3g-form-manager' ) . '</strong><span>' . esc_html__( 'Il form non si trova più nei dati di Elementor di questa pagina: premi "Riscansiona".', 'lu3g-form-manager' ) . '</span></div>';
+			return;
+		}
+		$v      = $data['values'];
+		$emails = self::email_fields( $form );
+		$backup = LU3G_FM_Elementor_Editor::backup_info( $form['post_id'], $form['element_id'] );
+		$acts   = (array) $v['submit_actions'];
+
+		echo '<form class="fm-form" data-el-form data-form-key="' . esc_attr( $form['key'] ) . '" autocomplete="off">';
+		echo '<p class="fm-note fm-note--info">' . esc_html__( 'Queste sono le impostazioni vere del form in Elementor: salvando, cambiano anche nell\'editor di Elementor. Un campo vuoto usa il valore predefinito di Elementor (in grigio).', 'lu3g-form-manager' );
+		if ( $backup ) {
+			/* translators: %s: tempo trascorso */
+			echo ' <button type="button" class="fm-linkbtn" data-el-undo>' . esc_html( sprintf( __( 'Annulla l\'ultima modifica (%s fa)', 'lu3g-form-manager' ), human_time_diff( (int) $backup['time'] ) ) ) . '</button>';
+		}
+		echo '</p>';
+
+		// Generale.
+		echo '<div class="fm-card"><h3>' . esc_html__( 'Generale', 'lu3g-form-manager' ) . '</h3><div class="fm-grid">';
+		self::el_input( 'form_name', __( 'Nome del modulo', 'lu3g-form-manager' ), $data, true );
+		echo '</div><div class="fm-field" style="margin-top:14px"><span>' . esc_html__( 'Azioni dopo l\'invio', 'lu3g-form-manager' ) . '</span><div class="fm-checks">';
+		foreach ( LU3G_FM_Elementor_Editor::actions() as $slug => $label ) {
+			printf( '<label class="fm-check"><input type="checkbox" data-el-list="submit_actions" value="%1$s" %2$s> %3$s</label>', esc_attr( $slug ), checked( in_array( $slug, $acts, true ), true, false ), esc_html( $label ) );
+		}
+		echo '</div>';
+		if ( $data['other_actions'] ) {
+			/* translators: %s: elenco di azioni */
+			echo '<small class="fm-help">' . esc_html( sprintf( __( 'Altre azioni attive, lasciate come sono: %s', 'lu3g-form-manager' ), implode( ', ', $data['other_actions'] ) ) ) . '</small>';
+		}
+		echo '<input type="hidden" data-el-other value="' . esc_attr( wp_json_encode( $data['other_actions'] ) ) . '"></div></div>';
+
+		// Email ed Email 2.
+		foreach ( array( '' => __( 'Email', 'lu3g-form-manager' ), '_2' => __( 'Email 2 (di solito la conferma a chi compila)', 'lu3g-form-manager' ) ) as $sfx => $title ) {
+			$action = '' === $sfx ? 'email' : 'email2';
+			echo '<div class="fm-card" data-el-section="' . esc_attr( $action ) . '"><div class="fm-card__head"><h3>' . esc_html( $title ) . '</h3>' . ( in_array( $action, $acts, true ) ? '<span class="fm-pill fm-pill--ok">' . esc_html__( 'Attiva', 'lu3g-form-manager' ) . '</span>' : '<span class="fm-pill">' . esc_html__( 'Non attiva', 'lu3g-form-manager' ) . '</span>' ) . '</div><div class="fm-grid">';
+			self::el_input( 'email_to' . $sfx, __( 'A', 'lu3g-form-manager' ), $data );
+			self::el_input( 'email_subject' . $sfx, __( 'Oggetto', 'lu3g-form-manager' ), $data );
+			self::el_input( 'email_content' . $sfx, __( 'Messaggio', 'lu3g-form-manager' ), $data, true, 'textarea' );
+			self::el_input( 'email_from' . $sfx, __( 'Da Email', 'lu3g-form-manager' ), $data );
+			self::el_input( 'email_from_name' . $sfx, __( 'Da Nome', 'lu3g-form-manager' ), $data );
+			if ( '' === $sfx ) {
+				echo '<label class="fm-field"><span>' . esc_html__( 'Rispondi a', 'lu3g-form-manager' ) . '</span><select data-el="email_reply_to"><option value="">' . esc_html__( '— Nessuno —', 'lu3g-form-manager' ) . '</option>';
+				foreach ( $emails as $f ) {
+					printf( '<option value="%1$s" %2$s>%3$s</option>', esc_attr( $f['id'] ), selected( $v['email_reply_to'], $f['id'], false ), esc_html( sprintf( /* translators: %s: etichetta del campo */ __( 'Campo «%s»', 'lu3g-form-manager' ), $f['label'] ) ) );
+				}
+				echo '</select><small>' . esc_html__( 'In Elementor è uno dei campi email del form.', 'lu3g-form-manager' ) . '</small></label>';
+			} else {
+				self::el_input( 'email_reply_to_2', __( 'Rispondi a', 'lu3g-form-manager' ), $data );
+			}
+			self::el_input( 'email_to_cc' . $sfx, __( 'Cc', 'lu3g-form-manager' ), $data );
+			self::el_input( 'email_to_bcc' . $sfx, __( 'Ccn', 'lu3g-form-manager' ), $data );
+			echo '<div class="fm-field"><span>' . esc_html__( 'Invia come', 'lu3g-form-manager' ) . '</span><select data-el="email_content_type' . esc_attr( $sfx ) . '"><option value="html" ' . selected( $v[ 'email_content_type' . $sfx ], 'html', false ) . '>HTML</option><option value="plain" ' . selected( $v[ 'email_content_type' . $sfx ], 'plain', false ) . '>' . esc_html__( 'Testo semplice', 'lu3g-form-manager' ) . '</option></select></div>';
+			echo '</div><div class="fm-field" style="margin-top:14px"><span>' . esc_html__( 'Metadati', 'lu3g-form-manager' ) . '</span><div class="fm-checks">';
+			$labels = array( 'date' => __( 'Data', 'lu3g-form-manager' ), 'time' => __( 'Orario', 'lu3g-form-manager' ), 'page_url' => __( 'URL della pagina', 'lu3g-form-manager' ), 'user_agent' => __( 'User agent', 'lu3g-form-manager' ), 'remote_ip' => __( 'IP remoto', 'lu3g-form-manager' ), 'credit' => __( 'Credito', 'lu3g-form-manager' ) );
+			foreach ( $labels as $m => $lab ) {
+				printf( '<label class="fm-check"><input type="checkbox" data-el-list="form_metadata%1$s" value="%2$s" %3$s> %4$s</label>', esc_attr( $sfx ), esc_attr( $m ), checked( in_array( $m, (array) $v[ 'form_metadata' . $sfx ], true ), true, false ), esc_html( $lab ) );
+			}
+			echo '</div></div><p class="fm-help" style="margin-top:12px">' . esc_html__( 'Nei testi puoi usare gli shortcode di Elementor, es. [field id="email"] e [all-fields].', 'lu3g-form-manager' ) . '</p></div>';
+		}
+
+		// Webhook di Elementor.
+		echo '<div class="fm-card" data-el-section="webhook"><div class="fm-card__head"><h3>' . esc_html__( 'Webhook (di Elementor)', 'lu3g-form-manager' ) . '</h3>' . ( in_array( 'webhook', $acts, true ) ? '<span class="fm-pill fm-pill--ok">' . esc_html__( 'Attivo', 'lu3g-form-manager' ) . '</span>' : '<span class="fm-pill">' . esc_html__( 'Non attivo', 'lu3g-form-manager' ) . '</span>' ) . '</div><div class="fm-grid">';
+		self::el_input( 'webhooks', __( 'URL del webhook', 'lu3g-form-manager' ), $data, true );
+		echo '</div>';
+		echo '<button type="button" class="fm-switch" role="switch" aria-checked="' . ( 'yes' === $v['webhooks_advanced_data'] ? 'true' : 'false' ) . '" data-el-bool="webhooks_advanced_data"><span class="fm-switch__track" aria-hidden="true"><span class="fm-switch__thumb"></span></span><span>' . esc_html__( 'Dati avanzati', 'lu3g-form-manager' ) . '</span></button>';
+		echo '<p class="fm-help" style="margin-top:10px">' . esc_html__( 'Questo è il webhook di Elementor (senza log). Per il log delle chiamate e il reinvio usa la scheda Webhook LU3G.', 'lu3g-form-manager' ) . '</p></div>';
+
+		echo '<div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva in Elementor', 'lu3g-form-manager' ) . '</button></div>';
+		echo '</form>';
+	}
+
+	/** Campo di testo legato a un'impostazione di Elementor: valore salvato, oppure vuoto col predefinito in grigio. */
+	private static function el_input( $key, $label, array $data, $wide = false, $type = 'text' ) {
+		$def   = LU3G_FM_Elementor_Editor::fields()[ $key ][1];
+		$saved = $data['saved'][ $key ];
+		$value = $saved ? (string) $data['values'][ $key ] : '';
+		$dyn   = $data['dynamic'][ $key ] ? ' <span class="fm-pill fm-pill--info" title="' . esc_attr__( 'In Elementor questo campo usa un tag dinamico: scrivendo qui lo sostituisci con un valore fisso.', 'lu3g-form-manager' ) . '">' . esc_html__( 'Dinamico', 'lu3g-form-manager' ) . '</span>' : '';
+		if ( 'textarea' === $type ) {
+			printf( '<label class="fm-field%1$s"><span>%2$s%3$s</span><textarea data-el="%4$s" rows="6" placeholder="%5$s">%6$s</textarea></label>', $wide ? ' fm-field--wide' : '', esc_html( $label ), $dyn, esc_attr( $key ), esc_attr( (string) $def ), esc_textarea( $value ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $dyn costruito escapato
+			return;
+		}
+		printf( '<label class="fm-field%1$s"><span>%2$s%3$s</span><input type="text" data-el="%4$s" value="%5$s" placeholder="%6$s" spellcheck="false"></label>', $wide ? ' fm-field--wide' : '', esc_html( $label ), $dyn, esc_attr( $key ), esc_attr( $value ), esc_attr( (string) $def ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	/**
@@ -428,8 +513,8 @@ final class LU3G_FM_Admin {
 		$el    = $form['elementor'];
 		$title = '' !== $ty['url'] ? self::page_title_of( $ty['url'] ) : '';
 		$pills = array(
-			'lu3g'      => array( 'fm-pill--brand', __( 'Impostata qui', 'lu3g-form-manager' ) ),
-			'elementor' => array( 'fm-pill--info', __( 'Impostata in Elementor', 'lu3g-form-manager' ) ),
+			'lu3g'      => array( 'fm-pill--brand', __( 'Impostata qui (versione precedente)', 'lu3g-form-manager' ) ),
+			'elementor' => array( 'fm-pill--ok', __( 'Attiva in Elementor', 'lu3g-form-manager' ) ),
 			'dynamic'   => array( 'fm-pill--info', __( 'Dinamica in Elementor', 'lu3g-form-manager' ) ),
 			'inactive'  => array( '', __( 'Nessuna attiva', 'lu3g-form-manager' ) ),
 			'none'      => array( '', __( 'Nessuna', 'lu3g-form-manager' ) ),
@@ -439,7 +524,7 @@ final class LU3G_FM_Admin {
 		if ( in_array( $ty['source'], array( 'lu3g', 'elementor' ), true ) ) {
 			echo '<div class="fm-ty__current"><div class="fm-ty__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><div class="fm-ty__text">';
 			echo '<strong>' . esc_html( '' !== $title ? $title : __( 'Indirizzo personalizzato', 'lu3g-form-manager' ) ) . '</strong>';
-			echo '<a href="' . esc_url( preg_replace( '/\{\{[a-z0-9_\-]+\}\}/i', '', $ty['url'] ) ) . '" target="_blank" rel="noopener" class="fm-mono">' . esc_html( $ty['url'] ) . ' ↗</a></div></div>';
+			echo '<a href="' . esc_url( preg_replace( '/\{\{[a-z0-9_\-]+\}\}/i', '', $ty['url'] ) ) . '" target="_blank" rel="noopener" class="fm-mono">' . esc_html( preg_replace( '/\[field id="?([a-z0-9_\-]+)"?\]/i', '{{$1}}', $ty['url'] ) ) . ' ↗</a></div></div>';
 			if ( 'lu3g' === $ty['source'] && '' !== (string) $el['redirect'] ) {
 				/* translators: %s: URL impostato in Elementor */
 				echo '<p class="fm-note">' . esc_html( sprintf( __( 'In Elementor c\'è %s, ma vale quella impostata qui.', 'lu3g-form-manager' ), $el['redirect'] ) ) . '</p>';
@@ -467,7 +552,7 @@ final class LU3G_FM_Admin {
 			}
 		}
 
-		echo '<div class="fm-card"><h3>' . esc_html__( 'Cambia thank you page', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Scegli una pagina del sito o scrivi un indirizzo. Puoi aggiungere i valori del form, es. ?nome={{nome}}. Vale da subito, senza aprire Elementor.', 'lu3g-form-manager' ) . '</p>';
+		echo '<form class="fm-card" data-ty-form data-form-key="' . esc_attr( $form['key'] ) . '" autocomplete="off"><h3>' . esc_html__( 'Cambia thank you page', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Scegli una pagina del sito o scrivi un indirizzo, poi "Salva in Elementor": il Redirect del form in Elementor cambia e si attiva da solo. Puoi aggiungere i valori del form, es. ?nome={{nome}}.', 'lu3g-form-manager' ) . '</p>';
 		echo '<div class="fm-grid"><label class="fm-field fm-field--wide"><span>' . esc_html__( 'Pagina del sito', 'lu3g-form-manager' ) . '</span><select data-ty-pick><option value="">' . esc_html__( '— Scegli una pagina —', 'lu3g-form-manager' ) . '</option>';
 		foreach ( array( __( 'Pagine di ringraziamento', 'lu3g-form-manager' ) => $suggest, __( 'Tutte le pagine', 'lu3g-form-manager' ) => $others ) as $group => $list ) {
 			if ( ! $list ) {
@@ -480,12 +565,13 @@ final class LU3G_FM_Admin {
 			echo '</optgroup>';
 		}
 		echo '</select></label>';
-		self::input( 'redirect', __( 'Indirizzo della thank you page', 'lu3g-form-manager' ), $cfg['redirect'], '' !== (string) $el['redirect'] ? $el['redirect'] : home_url( '/grazie/' ), true );
-		echo '</div>';
-		if ( '' !== $cfg['redirect'] ) {
-			echo '<div class="fm-inline"><button type="button" class="fm-btn" data-ty-reset>' . esc_html( '' !== (string) $el['redirect'] ? __( 'Torna a quella di Elementor', 'lu3g-form-manager' ) : __( 'Togli la thank you page', 'lu3g-form-manager' ) ) . '</button></div>';
+		$current = in_array( $ty['source'], array( 'elementor', 'lu3g', 'inactive' ), true ) ? preg_replace( '/\[field id="?([a-z0-9_\-]+)"?\]/i', '{{$1}}', $ty['url'] ) : '';
+		printf( '<label class="fm-field fm-field--wide"><span>%1$s</span><input type="text" name="redirect" value="%2$s" placeholder="%3$s" spellcheck="false"></label>', esc_html__( 'Indirizzo della thank you page', 'lu3g-form-manager' ), esc_attr( $current ), esc_attr( home_url( '/grazie/' ) ) );
+		echo '</div><div class="fm-inline"><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva in Elementor', 'lu3g-form-manager' ) . '</button>';
+		if ( in_array( $ty['source'], array( 'elementor', 'lu3g', 'dynamic' ), true ) ) {
+			echo '<button type="button" class="fm-btn" data-ty-remove>' . esc_html__( 'Togli la thank you page', 'lu3g-form-manager' ) . '</button>';
 		}
-		echo '</div>';
+		echo '</div></form>';
 	}
 
 	/** Editor del corpo con placeholder cliccabili, anteprima live e invio di test. */
@@ -519,9 +605,22 @@ final class LU3G_FM_Admin {
 		if ( '' === $key && isset( $_GET['fk'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			$q['form_key'] = sanitize_text_field( wp_unslash( $_GET['fk'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		}
-		$res   = LU3G_FM_DB::query_submissions( $q );
+		$src   = LU3G_FM_DB::source( isset( $_GET['src'] ) ? sanitize_key( wp_unslash( $_GET['src'] ) ) : '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$res   = LU3G_FM_DB::query_any( $q, $src );
 		$forms = LU3G_FM_Scanner::forms();
 		$base  = '' !== $key ? array( 'form' => $key, 'tab' => 'submissions' ) : array( 'tab' => 'submissions' );
+
+		// Fonte: archivio di Elementor (tutti gli invii, anche quelli di prima del plugin) o richieste raccolte dal plugin.
+		if ( LU3G_FM_DB::has_elementor_archive() ) {
+			echo '<nav class="fm-subtabs">';
+			foreach ( array( 'elementor' => __( 'Archivio di Elementor (tutti gli invii)', 'lu3g-form-manager' ), 'lu3g' => __( 'Raccolte da LU3G Form Manager', 'lu3g-form-manager' ) ) as $sk => $sl ) {
+				printf( '<a href="%1$s" class="%2$s">%3$s</a>', esc_url( self::url( array_merge( $base, array( 'src' => $sk ) ) ) ), $sk === $src ? 'is-current' : '', esc_html( $sl ) );
+			}
+			echo '</nav>';
+		} else {
+			echo '<p class="fm-note">' . esc_html__( 'In questo sito l\'archivio degli invii di Elementor non c\'è (o è disattivato): qui vedi le richieste raccolte da LU3G Form Manager dalla sua installazione.', 'lu3g-form-manager' ) . '</p>';
+		}
+		$base['src'] = $src;
 
 		echo '<div class="fm-card"><form class="fm-filters" method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '">';
 		foreach ( array_merge( array( 'page' => self::PAGE ), $base ) as $k => $v ) {
@@ -538,7 +637,8 @@ final class LU3G_FM_Admin {
 		echo '<label>' . esc_html__( 'Dal', 'lu3g-form-manager' ) . ' <input type="date" name="from" value="' . esc_attr( $q['from'] ) . '"></label>';
 		echo '<label>' . esc_html__( 'al', 'lu3g-form-manager' ) . ' <input type="date" name="to" value="' . esc_attr( $q['to'] ) . '"></label>';
 		echo '<button class="fm-btn">' . esc_html__( 'Filtra', 'lu3g-form-manager' ) . '</button>';
-		$export = wp_nonce_url( add_query_arg( array( 'action' => 'lu3g_fm_export', 'fk' => $q['form_key'], 's' => $q['search'], 'from' => $q['from'], 'to' => $q['to'] ), admin_url( 'admin-post.php' ) ), 'lu3g_fm_export' );
+		echo '<input type="hidden" name="src" value="' . esc_attr( $src ) . '">';
+		$export = wp_nonce_url( add_query_arg( array( 'action' => 'lu3g_fm_export', 'fk' => $q['form_key'], 's' => $q['search'], 'from' => $q['from'], 'to' => $q['to'], 'src' => $src ), admin_url( 'admin-post.php' ) ), 'lu3g_fm_export' );
 		echo '<a class="fm-btn fm-btn--primary" href="' . esc_url( $export ) . '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M6 10l6 6 6-6M5 20h14"/></svg>' . esc_html__( 'Esporta CSV', 'lu3g-form-manager' ) . '</a>';
 		echo '</form>';
 
@@ -555,12 +655,12 @@ final class LU3G_FM_Admin {
 				$preview[] = wp_html_excerpt( $v, 60, '…' );
 			}
 			printf(
-				'<tr style="--i:%1$d"><td class="fm-nowrap">%2$s</td>%3$s<td>%4$s</td><td class="fm-actions"><button type="button" class="fm-btn fm-btn--small" data-submission="%5$d">%6$s</button></td></tr>',
+				'<tr style="--i:%1$d"><td class="fm-nowrap">%2$s</td>%3$s<td>%4$s</td><td class="fm-actions"><button type="button" class="fm-btn fm-btn--small" data-submission="%5$s">%6$s</button></td></tr>',
 				(int) $i,
 				esc_html( wp_date( 'd/m/Y H:i', strtotime( $r['created'] . ' UTC' ) ) ),
 				'' === $key ? '<td>' . esc_html( $r['form_name'] ) . '</td>' : '',
 				esc_html( implode( ' · ', array_filter( $preview ) ) ),
-				(int) $r['id'],
+				esc_attr( (string) $r['id'] ),
 				esc_html__( 'Dettaglio', 'lu3g-form-manager' )
 			);
 		}
@@ -822,7 +922,8 @@ final class LU3G_FM_Admin {
 				break;
 
 			case 'submission_view':
-				$row = LU3G_FM_DB::get_submission( absint( $data['id'] ?? 0 ) );
+				$sid = (string) ( $data['id'] ?? '' );
+				$row = 0 === strpos( $sid, 'e' ) ? LU3G_FM_DB::get_elementor_submission( absint( substr( $sid, 1 ) ) ) : LU3G_FM_DB::get_submission( absint( $sid ) );
 				if ( ! $row ) {
 					wp_send_json_error( array( 'message' => __( 'Richiesta non trovata.', 'lu3g-form-manager' ) ) );
 				}
@@ -832,8 +933,64 @@ final class LU3G_FM_Admin {
 				break;
 
 			case 'submission_delete':
-				LU3G_FM_DB::delete_submission( absint( $data['id'] ?? 0 ) );
+				$sid = (string) ( $data['id'] ?? '' );
+				if ( 0 === strpos( $sid, 'e' ) ) {
+					LU3G_FM_DB::trash_elementor_submission( absint( substr( $sid, 1 ) ) );
+					wp_send_json_success( array( 'message' => __( 'Spostata nel cestino degli Invii di Elementor (da lì si recupera).', 'lu3g-form-manager' ) ) );
+				}
+				LU3G_FM_DB::delete_submission( absint( $sid ) );
 				wp_send_json_success( array( 'message' => __( 'Richiesta eliminata.', 'lu3g-form-manager' ) ) );
+				break;
+
+			case 'elementor_save':
+				self::need( $form );
+				$changes = isset( $data['changes'] ) && is_array( $data['changes'] ) ? $data['changes'] : array();
+				if ( isset( $changes['submit_actions'] ) ) {
+					// Le azioni non gestite qui (es. Mailchimp) restano come sono.
+					$cur                       = LU3G_FM_Elementor_Editor::get( $form['post_id'], $form['element_id'] );
+					$keep                      = $cur ? $cur['other_actions'] : array();
+					$changes['submit_actions'] = array_values( array_unique( array_merge( array_intersect( (array) $changes['submit_actions'], array_keys( LU3G_FM_Elementor_Editor::actions() ) ), $keep ) ) );
+				}
+				$r = LU3G_FM_Elementor_Editor::save( $form['post_id'], $form['element_id'], $changes );
+				if ( is_wp_error( $r ) ) {
+					wp_send_json_error( array( 'message' => $r->get_error_message() ) );
+				}
+				self::after_elementor_change( $key );
+				wp_send_json_success( array( 'message' => __( 'Salvato in Elementor.', 'lu3g-form-manager' ), 'reload' => true ) );
+				break;
+
+			case 'elementor_undo':
+				self::need( $form );
+				$r = LU3G_FM_Elementor_Editor::undo( $form['post_id'], $form['element_id'] );
+				if ( is_wp_error( $r ) ) {
+					wp_send_json_error( array( 'message' => $r->get_error_message() ) );
+				}
+				LU3G_FM_Scanner::scan();
+				wp_send_json_success( array( 'message' => __( 'Ultima modifica annullata.', 'lu3g-form-manager' ), 'reload' => true ) );
+				break;
+
+			case 'ty_save':
+			case 'ty_remove':
+				self::need( $form );
+				$cur  = LU3G_FM_Elementor_Editor::get( $form['post_id'], $form['element_id'] );
+				$acts = $cur ? (array) $cur['values']['submit_actions'] : array( 'email' );
+				if ( 'ty_save' === $op ) {
+					$url = preg_replace( '/\{\{([a-z0-9_\-]+)\}\}/i', '[field id="$1"]', trim( (string) ( $data['url'] ?? '' ) ) );
+					if ( ! LU3G_FM_Settings::valid_url( preg_replace( '/\[field id="?[a-z0-9_\-]+"?\]/i', 'x', $url ) ) ) {
+						wp_send_json_error( array( 'message' => __( 'Scrivi un indirizzo valido (http o https).', 'lu3g-form-manager' ) ) );
+					}
+					$changes = array( 'redirect_to' => $url, 'submit_actions' => array_values( array_unique( array_merge( $acts, array( 'redirect' ) ) ) ) );
+					$msg     = __( 'Thank you page salvata in Elementor.', 'lu3g-form-manager' );
+				} else {
+					$changes = array( 'submit_actions' => array_values( array_diff( $acts, array( 'redirect' ) ) ) );
+					$msg     = __( 'Thank you page tolta: dopo l\'invio il visitatore resta sulla pagina.', 'lu3g-form-manager' );
+				}
+				$r = LU3G_FM_Elementor_Editor::save( $form['post_id'], $form['element_id'], $changes );
+				if ( is_wp_error( $r ) ) {
+					wp_send_json_error( array( 'message' => $r->get_error_message() ) );
+				}
+				self::after_elementor_change( $key );
+				wp_send_json_success( array( 'message' => $msg, 'reload' => true ) );
 				break;
 
 			case 'save_settings':
@@ -842,6 +999,20 @@ final class LU3G_FM_Admin {
 				break;
 		}
 		wp_send_json_error( array( 'message' => __( 'Azione sconosciuta.', 'lu3g-form-manager' ) ) );
+	}
+
+	/**
+	 * Dopo un salvataggio in Elementor: le vecchie modifiche "a runtime" della 1.0/1.1 su email e thank you page
+	 * vengono tolte (ora vale quello che c'è in Elementor) e la scansione si aggiorna (es. nome del form).
+	 */
+	private static function after_elementor_change( $key ) {
+		$cfg = LU3G_FM_Settings::form( $key );
+		foreach ( array( 'to', 'from_email', 'from_name', 'reply_to', 'cc', 'bcc' ) as $k ) {
+			$cfg['admin'][ $k ] = '';
+		}
+		$cfg['redirect'] = '';
+		LU3G_FM_Settings::save_form( $key, $cfg );
+		LU3G_FM_Scanner::scan();
 	}
 
 	private static function need( $form ) {
@@ -873,14 +1044,15 @@ final class LU3G_FM_Admin {
 		if ( ! current_user_can( self::CAP ) || ! check_admin_referer( 'lu3g_fm_export' ) ) {
 			wp_die( esc_html__( 'Non hai i permessi per questa operazione.', 'lu3g-form-manager' ) );
 		}
-		$res = LU3G_FM_DB::query_submissions(
+		$res = LU3G_FM_DB::query_any(
 			array(
 				'form_key' => isset( $_GET['fk'] ) ? sanitize_text_field( wp_unslash( $_GET['fk'] ) ) : '',
 				'search'   => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
 				'from'     => isset( $_GET['from'] ) ? sanitize_text_field( wp_unslash( $_GET['from'] ) ) : '',
 				'to'       => isset( $_GET['to'] ) ? sanitize_text_field( wp_unslash( $_GET['to'] ) ) : '',
 				'per_page' => 0,
-			)
+			),
+			isset( $_GET['src'] ) ? sanitize_key( wp_unslash( $_GET['src'] ) ) : ''
 		);
 		self::csv( $res['rows'], 'richieste-' . gmdate( 'Y-m-d' ) . '.csv' );
 	}

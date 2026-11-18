@@ -1,5 +1,13 @@
 # Registro delle modifiche
 
+## 1.2.0
+- Nuova scheda **Impostazioni Elementor** (la prima del form): tutte le impostazioni vere del form, lette da Elementor e salvate in Elementor: **nome del modulo**, azioni dopo l'invio (Email, Email 2, Redirect, Webhook; le altre, es. Mailchimp, restano), **Email** ed **Email 2** (A, Oggetto, Messaggio, Da Email, Da Nome, Rispondi a, Cc, Ccn, Invia come, Metadati) e **Webhook** di Elementor (URL, Dati avanzati). Un campo vuoto mostra in grigio il predefinito di Elementor; i campi con un tag dinamico sono segnalati e restano dinamici finché non li cambi.
+- Il salvataggio passa da Elementor (`Document::save`), come dall'editor: si vede subito anche aprendo Elementor, CSS e cache della pagina si rigenerano. Si salvano solo i campi cambiati. Prima di ogni modifica si tiene una copia: **"Annulla l'ultima modifica"**.
+- **Thank you page** scritta direttamente nel Redirect di Elementor (l'azione Redirect si accende da sola); "Togli la thank you page" la spegne. I placeholder `{{campo}}` diventano `[field id="campo"]`.
+- **Richieste**: c'è l'**archivio di Elementor** (tabelle `e_submissions`), con tutti gli invii anche di prima dell'installazione del plugin, con ricerca, date, dettaglio, export CSV e "Sposta nel cestino" (quello di Elementor). Le richieste raccolte dal plugin restano in una seconda vista. Il numero di invii nell'elenco viene dall'archivio di Elementor.
+- Le **email LU3G** (scheda Email personalizzate) prendono destinatari e mittente dall'Email di Elementor; dal plugin arrivano oggetto e testo.
+- Le vecchie modifiche "a runtime" della 1.0/1.1 su destinatari e thank you page vengono tolte al primo salvataggio in Elementor del form.
+
 ## 1.1.0
 - Scheda *Thank you page*: in evidenza la thank you page attuale del form (titolo della pagina, indirizzo con "Apri" e provenienza: impostata in Elementor, impostata qui, tag dinamico di Elementor, indirizzo in Elementor con l'azione Redirect spenta, nessuna).
 - Si cambia scegliendo tra le pagine del sito (in cima quelle di ringraziamento: "grazie", "thank you", "conferma", "ricevuta"...) o scrivendo un indirizzo; pulsante "Torna a quella di Elementor".

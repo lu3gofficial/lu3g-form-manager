@@ -147,6 +147,16 @@ small.fm-help { display: block; margin: 6px 0 0; font-size: 12px; }
 .fm-preview iframe { display: block; width: 100%; height: 440px; border: 0; background: #f4f4f5; }
 .fm-editor[data-needs-lu3g] .fm-editor__cols, .fm-editor[data-needs-lu3g] .fm-chips, .fm-editor[data-needs-lu3g] .fm-inline { opacity: .45; pointer-events: none; }
 
+/* sottoschede (fonte delle richieste), caselle, nota informativa */
+.fm-subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+.fm-subtabs a { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-2); font-size: 12px; font-weight: 700; text-decoration: none; }
+.fm-subtabs a.is-current { border-color: var(--ink); background: var(--ink); color: #fff; }
+.fm-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.fm-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.lu3g-fm .fm-check input[type="checkbox"], .lu3g-fm .fm-lock input[type="checkbox"] { -webkit-appearance: checkbox; appearance: auto; width: 16px; min-height: 0; height: 16px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; accent-color: var(--ink); }
+.lu3g-fm .fm-check input[type="checkbox"]::before { content: none; }
+.fm-note--info { margin: 0 0 16px; background: #eff6ff; color: #1e3a8a; }
+
 /* thank you page attuale */
 .fm-ty__current { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: #f4f4f5; }
 .fm-ty__icon { display: grid; place-items: center; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; background: var(--ink); color: #fff; }
