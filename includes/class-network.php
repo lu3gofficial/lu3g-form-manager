@@ -263,14 +263,6 @@ final class LU3G_FM_Network {
 		LU3G_FM_Admin::setting( 'logo', $net, $net, true, 'media', true );
 		LU3G_FM_Admin::setting( 'color', $net, $net, true, 'color', true );
 		LU3G_FM_Admin::setting( 'footer', $net, $net, true, 'textarea', true );
-		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Webhook di default', 'lu3g-form-manager' ) . '</h3>';
-		LU3G_FM_Admin::setting( 'webhook_enabled', $net, $net, true, 'switch', true );
-		LU3G_FM_Admin::setting( 'webhook_url', $net, $net, true, 'url', true );
-		LU3G_FM_Admin::setting( 'webhook_method', $net, $net, true, 'method', true );
-		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Conversioni di default', 'lu3g-form-manager' ) . '</h3>';
-		foreach ( array( 'conv_enabled' => 'switch', 'conv_gtm' => 'switch', 'conv_gtm_event' => 'text', 'conv_ga4' => 'switch', 'conv_ga4_event' => 'text', 'conv_ads' => 'switch', 'conv_ads_send_to' => 'text', 'conv_ads_value' => 'text', 'conv_ads_currency' => 'text', 'conv_meta' => 'switch', 'conv_meta_event' => 'text' ) as $ck => $ct ) {
-			LU3G_FM_Admin::setting( $ck, $net, $net, true, $ct, true );
-		}
 		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Retention di default', 'lu3g-form-manager' ) . '</h3>';
 		LU3G_FM_Admin::setting( 'retention_months', $net, $net, true, 'number', true );
 		echo '</div><div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div></form>';

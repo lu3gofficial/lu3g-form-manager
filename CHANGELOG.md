@@ -1,5 +1,11 @@
 # Registro delle modifiche
 
+## 1.4.0
+- **Log webhook**: il log registra le chiamate del **webhook di Elementor** (quello impostato nel form, es. SaveMyLeads): URL, dati inviati, stato HTTP, risposta, errore, durata, collegati alla richiesta; con **Reinvia** (stessi dati allo stesso URL). Il webhook continua a partire da Elementor come prima: il plugin lo osserva con i due agganci ufficiali (`elementor_pro/forms/webhooks/request_args`, che restituisce i dati invariati, e `elementor_pro/forms/webhooks/response`).
+- Tolto il **Webhook LU3G** (secondo webhook del plugin, un doppione di quello di Elementor): via la configurazione nel form, il webhook di default nelle impostazioni e "Invia test". Le vecchie chiamate restano nel log.
+- Tolte le **conversioni** (diventeranno un plugin a parte): via la scheda, le impostazioni e lo script nel sito; il reindirizzamento alla thank you page torna sempre quello di Elementor.
+- Elenco dei form: la colonna *Webhook* mostra il servizio del webhook di Elementor, se l'azione è attiva o spenta e l'esito dell'ultima chiamata.
+
 ## 1.3.0
 - **Conversioni**: a ogni invio riuscito partono gli eventi verso gli strumenti già presenti nel sito: **Google Tag Manager** (dataLayer, evento `lu3g_form_submit`), **Google Analytics 4** (`generate_lead`), **Google Ads** (`conversion` con send_to, valore e valuta) e **Meta Pixel** (`Lead` o un evento personalizzato). Impostazioni generali (ereditate dalla rete su Multisite) e, per ogni form, scheda *Conversioni*: generali, sue o nessuna. Nessun dato personale del form viene inviato agli strumenti.
 - Sui form con conversioni il passaggio alla thank you page avviene 700 ms dopo gli eventi, così non si perdono (Elementor cambierebbe pagina subito).

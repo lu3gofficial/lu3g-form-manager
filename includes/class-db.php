@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class LU3G_FM_DB {
 
-	const VERSION = '1';
+	const VERSION = '2'; // 2: colonna "source" nel log dei webhook (elementor / lu3g)
 	const CRON    = 'lu3g_fm_retention';
 
 	public static function submissions() {
@@ -80,6 +80,7 @@ final class LU3G_FM_DB {
 				error text NULL,
 				duration_ms int(10) unsigned NOT NULL DEFAULT 0,
 				is_test tinyint(1) NOT NULL DEFAULT 0,
+				source varchar(20) NOT NULL DEFAULT 'lu3g',
 				created datetime NOT NULL,
 				PRIMARY KEY  (id),
 				KEY form_key (form_key),
@@ -415,7 +416,7 @@ final class LU3G_FM_DB {
 		$where = '' !== $form_key ? $wpdb->prepare( 'WHERE form_key = %s', $form_key ) : '';
 		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery
 		$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$w} {$where}" );
-		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT id, form_key, submission_id, url, method, status_code, error, duration_ms, is_test, created FROM {$w} {$where} ORDER BY id DESC LIMIT %d OFFSET %d", $per, ( max( 1, $page ) - 1 ) * $per ), ARRAY_A );
+		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT id, form_key, submission_id, url, method, status_code, error, duration_ms, is_test, source, created FROM {$w} {$where} ORDER BY id DESC LIMIT %d OFFSET %d", $per, ( max( 1, $page ) - 1 ) * $per ), ARRAY_A );
 		// phpcs:enable
 		return array(
 			'rows'  => $rows ? $rows : array(),

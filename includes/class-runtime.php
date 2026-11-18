@@ -125,10 +125,8 @@ final class LU3G_FM_Runtime {
 				)
 			);
 
-			$hook = LU3G_FM_Settings::webhook_for( $key );
-			if ( $hook ) {
-				LU3G_FM_Webhook::send( $hook['url'], $hook['method'], LU3G_FM_Webhook::payload( $ctx, $id ), $key, $id );
-			}
+			// Il webhook è quello di Elementor (registrato nel log da LU3G_FM_Webhook_Log): qui si collega la chiamata alla richiesta.
+			LU3G_FM_Webhook_Log::attach_submission( $id );
 
 			if ( 'lu3g' === $cfg['admin']['mode'] && LU3G_FM_Settings::can_replace_emails() ) {
 				// Destinatari e mittente: quelli dell'Email di Elementor (modificabili nella scheda Impostazioni Elementor);

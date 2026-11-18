@@ -37,14 +37,6 @@ Elementor Pro salva ogni invio in `{prefix}e_submissions` e `{prefix}e_submissio
 La scheda Richieste lo legge (anche gli invii di prima dell'installazione) e "Sposta nel cestino" usa lo stato `trash` di
 Elementor. Se l'archivio non c'è, si vedono le richieste raccolte dal plugin.
 
-## Conversioni (dalla 1.3.0)
-A ogni invio riuscito (`submit_success`, evento jQuery di Elementor Pro sul form) `assets/conversions.js` manda:
-GTM `dataLayer.push({ event, lu3g_form_name, lu3g_form_key, lu3g_page })`, GA4 `gtag('event', nome, { form_name, form_id })`,
-Google Ads `gtag('event', 'conversion', { send_to, value, currency })`, Meta `fbq('track'|'trackCustom', evento, { content_name })`.
-Usa gli strumenti già caricati dal sito (non li carica); niente dati personali. Sui form con conversioni il redirect di
-Elementor viene spostato in `lu3g_redirect_url` (su `new_record`, priorità 50) e lo script lo esegue 700 ms dopo gli eventi.
-Impostazioni generali (base → rete → sito) e per form (generali / sue / nessuna). Debug: `LU3G_FM_CONV.debug = true`.
-
 ## Come si aggancia a Elementor Pro (invio)
 Flusso di un invio in Elementor Pro (verificato sul codice della 4.4, `Ajax_Handler::ajax_send_form`):
 validazione → `elementor_pro/forms/record/actions_before` → `elementor_pro/forms/submit_actions` (dalla 4.0.3) →
@@ -61,12 +53,11 @@ azioni (email, email2, redirect, webhook…) → `elementor_pro/forms/new_record
 Un campo di override vuoto lascia il valore impostato in Elementor. Errori interni vengono catturati: il form del
 visitatore non fallisce mai per colpa del plugin.
 
-## Webhook
-JSON con `event`, `submission_id`, `test`, `form` (key, name, form_id, element_id, post_id), `fields` (per id),
-`fields_detail` (id, label, type, value), `page` (url, title), `submitted_at` (ISO 8601), `timestamp`, `ip`,
-`user_agent`, `site`. Metodi POST, PUT, PATCH o GET (con GET i campi vanno nella query string). Timeout 8 secondi,
-inviato durante l'invio del form (così il log ha subito l'esito). Intestazioni `X-LU3G-Event` e `X-LU3G-Form`.
-Ogni form: "webhook di default" (impostazioni), "suo" o "disattivato".
+## Log del webhook di Elementor (dalla 1.4.0)
+Il webhook resta quello di Elementor (scheda Impostazioni Elementor: URL e Dati avanzati). Il plugin lo osserva con
+`elementor_pro/forms/webhooks/request_args` (annota dati e ora, restituisce gli stessi argomenti) e
+`elementor_pro/forms/webhooks/response` (scrive il log: stato, risposta, errore, durata). "Reinvia" rimanda gli stessi
+dati allo stesso URL in POST come Elementor. Il vecchio "Webhook LU3G" (1.0–1.3) è stato tolto.
 
 ## Placeholder delle email
 `{{id_campo}}` per ogni campo, `{{all_fields}}` (tabella), `{{form_name}}`, `{{page_url}}`, `{{page_title}}`,
@@ -110,14 +101,12 @@ Rispondi a (email LU3G) e nell'URL della thank you page (valori codificati).
    l'anteprima → Salva → "Invia email di test" → invia il form dal sito: arriva una sola email (quella LU3G).
 4. **Email Utente**: Email personalizzate → Email di conferma → Attiva → invia il form con il tuo indirizzo.
 5. **Thank you page**: nell'elenco c'è la colonna con quella di ogni form; nella scheda vedi quella attuale e da dove viene, scegli un'altra pagina dal menu (o un URL, anche con `?nome={{nome}}`) → Salva → dopo l'invio il visitatore ci arriva. "Torna a quella di Elementor" annulla.
-6. **Webhook**: Webhook → "Webhook di questo form" con un URL di prova (es. webhook.site) → Salva → "Invia test" →
-   controlla il payload e il log; con un URL che risponde errore vedi "HTTP 500" e puoi usare "Reinvia".
+6. **Log webhook**: invia il form dal sito → scheda Log webhook del form: c'è la chiamata del webhook di Elementor
+   con esito, dati inviati e risposta; "Reinvia" la rimanda. Nell'elenco la colonna Webhook mostra l'ultimo esito.
 7. **Richieste**: scheda Richieste → "Archivio di Elementor" mostra anche gli invii vecchi; ricerca, date, Dettaglio,
    Esporta CSV (si apre in Excel).
 8. **Retention**: Impostazioni → mesi; le richieste più vecchie spariscono al passaggio giornaliero del cron.
-9. **Conversioni**: Impostazioni → Conversioni attive; nella console del sito `LU3G_FM_CONV.debug = true`, invia un form:
-   vedi gli eventi partiti; in GTM (modalità anteprima) compare l'evento `lu3g_form_submit`; poi si apre la thank you page.
-10. **Multisite**: attiva in rete, crea un sito nuovo (le tabelle compaiono), imposta i valori di rete e blocca un campo,
+9. **Multisite**: attiva in rete, crea un sito nuovo (le tabelle compaiono), imposta i valori di rete e blocca un campo,
    controlla nelle Impostazioni del sito le etichette; Network Admin → LU3G Form → "Riscansiona la rete", Richieste,
    Esporta CSV.
 
