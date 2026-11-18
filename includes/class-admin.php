@@ -211,9 +211,7 @@ final class LU3G_FM_Admin {
 			$n     = $counts[ $key ]['n'] ?? 0;
 			$hook  = LU3G_FM_Settings::webhook_for( $key );
 			$st    = $status[ $key ] ?? null;
-			$badge = ! $hook ? '<span class="fm-pill">' . esc_html__( 'Nessuno', 'lu3g-form-manager' ) . '</span>'
-				: ( ! $st ? '<span class="fm-pill fm-pill--info">' . esc_html__( 'Mai chiamato', 'lu3g-form-manager' ) . '</span>'
-				: ( $st['ok'] ? '<span class="fm-pill fm-pill--ok">OK</span>' : '<span class="fm-pill fm-pill--err">' . esc_html( $st['code'] ? 'HTTP ' . $st['code'] : __( 'Errore', 'lu3g-form-manager' ) ) . '</span>' ) );
+			$badge = self::webhook_cell( $f, $hook, $st );
 			printf(
 				'<tr style="--i:%1$d" data-text="%2$s"><td><a class="fm-strong" href="%3$s">%4$s</a>%5$s<small class="fm-mono">%6$s</small></td><td>%7$s <a href="%8$s" target="_blank" rel="noopener" class="fm-link">%9$s ↗</a><small>%10$s</small></td><td>%14$s</td><td class="num">%11$d</td><td>%12$s</td><td class="fm-actions"><a class="fm-btn fm-btn--small" href="%3$s">%13$s</a></td></tr>',
 				(int) $i++,
@@ -268,6 +266,7 @@ final class LU3G_FM_Admin {
 				'redirect'    => __( 'Thank you page', 'lu3g-form-manager' ),
 				'emails'      => __( 'Email personalizzate', 'lu3g-form-manager' ),
 				'webhook'     => __( 'Webhook LU3G', 'lu3g-form-manager' ),
+				'conv'        => __( 'Conversioni', 'lu3g-form-manager' ),
 				'submissions' => __( 'Richieste', 'lu3g-form-manager' ),
 			),
 			$tab,
@@ -329,6 +328,8 @@ final class LU3G_FM_Admin {
 			self::input( 'user[reply_to]', __( 'Rispondi a', 'lu3g-form-manager' ), $u['reply_to'], $v['email_reply_to_2'] ?? '' );
 			echo '</div></div>';
 			self::editor( 'user', $u, $form );
+		} elseif ( 'conv' === $tab ) {
+			self::section_conversions_form( $cfg );
 		} elseif ( 'webhook' === $tab ) {
 			$w = $cfg['webhook'];
 			$g = LU3G_FM_Settings::general();
@@ -356,6 +357,51 @@ final class LU3G_FM_Admin {
 		if ( 'webhook' === $tab ) {
 			self::section_webhooks( $key );
 		}
+	}
+
+	/** Scheda Conversioni del form: impostazioni generali, sue o nessuna. */
+	private static function section_conversions_form( array $cfg ) {
+		$c = $cfg['conv'];
+		$g = LU3G_FM_Settings::general();
+		$v = array_merge( $g, array_intersect_key( $c, array_flip( LU3G_FM_Settings::conv_keys() ) ) );
+		$summary = array();
+		foreach ( array( 'conv_gtm' => 'GTM', 'conv_ga4' => 'GA4', 'conv_ads' => 'Google Ads', 'conv_meta' => 'Meta' ) as $k => $l ) {
+			if ( ! empty( $g[ $k ] ) ) {
+				$summary[] = $l;
+			}
+		}
+		echo '<div class="fm-card"><h3>' . esc_html__( 'Conversioni', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Quando il form viene inviato con successo, partono gli eventi verso gli strumenti già installati nel sito (GTM, Google Analytics 4, Google Ads, Meta Pixel). Non si mandano dati personali: solo nome del form e pagina.', 'lu3g-form-manager' ) . '</p>';
+		echo '<div class="fm-seg" role="radiogroup">';
+		self::radio( 'conv[mode]', 'default', $c['mode'], __( 'Impostazioni generali', 'lu3g-form-manager' ), $g['conv_enabled'] ? implode( ', ', $summary ) : __( 'Spente nelle impostazioni generali.', 'lu3g-form-manager' ) );
+		self::radio( 'conv[mode]', 'custom', $c['mode'], __( 'Impostazioni di questo form', 'lu3g-form-manager' ), __( 'Strumenti ed eventi scelti qui sotto.', 'lu3g-form-manager' ) );
+		self::radio( 'conv[mode]', 'off', $c['mode'], __( 'Nessuna conversione', 'lu3g-form-manager' ), __( 'Questo form non manda eventi.', 'lu3g-form-manager' ) );
+		echo '</div><div data-show-if="conv[mode]=custom">';
+		self::conv_fields( 'conv', $v );
+		echo '</div></div>';
+	}
+
+	/** Campi delle conversioni (usati nel form e nelle impostazioni generali). $prefix: nome dei campi. */
+	private static function conv_fields( $prefix, array $v ) {
+		$rows = array(
+			array( 'conv_gtm', 'Google Tag Manager', 'conv_gtm_event', __( 'Nome dell\'evento nel dataLayer', 'lu3g-form-manager' ) ),
+			array( 'conv_ga4', 'Google Analytics 4', 'conv_ga4_event', __( 'Nome dell\'evento GA4', 'lu3g-form-manager' ) ),
+			array( 'conv_meta', 'Meta Pixel', 'conv_meta_event', __( 'Evento (Lead, Contact, CompleteRegistration… o personalizzato)', 'lu3g-form-manager' ) ),
+		);
+		echo '<div class="fm-conv">';
+		foreach ( $rows as $r ) {
+			echo '<div class="fm-conv__row">';
+			self::switch_html( $prefix . '[' . $r[0] . ']', $r[1], ! empty( $v[ $r[0] ] ) );
+			printf( '<label class="fm-field"><span>%1$s</span><input type="text" name="%2$s[%3$s]" value="%4$s" spellcheck="false"></label>', esc_html( $r[3] ), esc_attr( $prefix ), esc_attr( $r[2] ), esc_attr( $v[ $r[2] ] ) );
+			echo '</div>';
+		}
+		echo '<div class="fm-conv__row">';
+		self::switch_html( $prefix . '[conv_ads]', 'Google Ads', ! empty( $v['conv_ads'] ) );
+		echo '<div class="fm-grid fm-grid--3">';
+		printf( '<label class="fm-field"><span>%1$s</span><input type="text" name="%2$s[conv_ads_send_to]" value="%3$s" placeholder="AW-123456789/AbCdEfGh" spellcheck="false"></label>', esc_html__( 'send_to (ID/etichetta)', 'lu3g-form-manager' ), esc_attr( $prefix ), esc_attr( $v['conv_ads_send_to'] ) );
+		printf( '<label class="fm-field"><span>%1$s</span><input type="text" name="%2$s[conv_ads_value]" value="%3$s" placeholder="1"></label>', esc_html__( 'Valore (facoltativo)', 'lu3g-form-manager' ), esc_attr( $prefix ), esc_attr( $v['conv_ads_value'] ) );
+		printf( '<label class="fm-field"><span>%1$s</span><input type="text" name="%2$s[conv_ads_currency]" value="%3$s" maxlength="3"></label>', esc_html__( 'Valuta', 'lu3g-form-manager' ), esc_attr( $prefix ), esc_attr( $v['conv_ads_currency'] ) );
+		echo '</div></div></div>';
+		echo '<p class="fm-help" style="margin-top:12px">' . esc_html__( 'Si usano gli strumenti già presenti nel sito: GA4 e Google Ads con gtag, Meta con fbq, GTM col dataLayer (con GTM puoi anche creare i tag sull\'evento del dataLayer). Per controllare: nella console del browser scrivi LU3G_FM_CONV.debug = true e invia il form.', 'lu3g-form-manager' ) . '</p>';
 	}
 
 	private static function email_fields( array $form ) {
@@ -487,6 +533,31 @@ final class LU3G_FM_Admin {
 	private static function page_title_of( $url ) {
 		$id = url_to_postid( preg_replace( '/\{\{[a-z0-9_\-]+\}\}/i', '', (string) $url ) );
 		return $id ? get_the_title( $id ) : '';
+	}
+
+	/**
+	 * Colonna Webhook dell'elenco: prima il webhook di Elementor (dominio, attivo o spento), poi il webhook LU3G
+	 * con l'esito dell'ultima chiamata.
+	 */
+	public static function webhook_cell( array $form, $hook, $st ) {
+		$el   = $form['elementor'] ?? array();
+		$url  = (string) ( $el['webhook'] ?? '' );
+		$on   = in_array( 'webhook', (array) ( $form['actions'] ?? array() ), true );
+		$host = '' !== $url ? (string) wp_parse_url( $url, PHP_URL_HOST ) : '';
+		$out  = '<div class="fm-hooks">';
+		if ( '' !== $url || ! empty( $el['webhook_dynamic'] ) ) {
+			$out .= '<span class="fm-hook" title="' . esc_attr( $url ) . '"><b>' . esc_html__( 'Elementor', 'lu3g-form-manager' ) . '</b> ' . esc_html( '' !== $host ? preg_replace( '/^www\./', '', $host ) : __( 'dinamico', 'lu3g-form-manager' ) ) . ' '
+				. ( $on ? '<span class="fm-pill fm-pill--ok">' . esc_html__( 'Attivo', 'lu3g-form-manager' ) . '</span>' : '<span class="fm-pill">' . esc_html__( 'Spento', 'lu3g-form-manager' ) . '</span>' ) . '</span>';
+		} else {
+			$out .= '<span class="fm-hook fm-muted"><b>' . esc_html__( 'Elementor', 'lu3g-form-manager' ) . '</b> ' . esc_html__( 'nessuno', 'lu3g-form-manager' ) . '</span>';
+		}
+		if ( $hook ) {
+			$state = ! $st ? '<span class="fm-pill fm-pill--info">' . esc_html__( 'Mai chiamato', 'lu3g-form-manager' ) . '</span>'
+				: ( $st['ok'] ? '<span class="fm-pill fm-pill--ok">OK</span>' : '<span class="fm-pill fm-pill--err">' . esc_html( $st['code'] ? 'HTTP ' . $st['code'] : __( 'Errore', 'lu3g-form-manager' ) ) . '</span>' );
+			$lh    = (string) wp_parse_url( $hook['url'], PHP_URL_HOST );
+			$out  .= '<span class="fm-hook" title="' . esc_attr( $hook['url'] ) . '"><b>LU3G</b> ' . esc_html( preg_replace( '/^www\./', '', $lh ) ) . ' ' . $state . '</span>';
+		}
+		return $out . '</div>';
 	}
 
 	/** Etichetta breve della thank you page per l'elenco dei form. */
@@ -737,6 +808,10 @@ final class LU3G_FM_Admin {
 		self::setting( 'webhook_enabled', $g, $net, $multi, 'switch' );
 		self::setting( 'webhook_url', $g, $net, $multi, 'url' );
 		self::setting( 'webhook_method', $g, $net, $multi, 'method' );
+		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Conversioni', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Eventi a ogni invio riuscito, per i form impostati su "Impostazioni generali" (scheda Conversioni del form).', 'lu3g-form-manager' ) . '</p>';
+		foreach ( array( 'conv_enabled' => 'switch', 'conv_gtm' => 'switch', 'conv_gtm_event' => 'text', 'conv_ga4' => 'switch', 'conv_ga4_event' => 'text', 'conv_ads' => 'switch', 'conv_ads_send_to' => 'text', 'conv_ads_value' => 'text', 'conv_ads_currency' => 'text', 'conv_meta' => 'switch', 'conv_meta_event' => 'text' ) as $ck => $ct ) {
+			self::setting( $ck, $g, $net, $multi, $ct );
+		}
 		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Conservazione dei dati', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Le richieste più vecchie si cancellano da sole ogni giorno (GDPR). 0 = non cancellare mai.', 'lu3g-form-manager' ) . '</p>';
 		self::setting( 'retention_months', $g, $net, $multi, 'number' );
 		echo '</div><div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div></form>';
@@ -790,6 +865,9 @@ final class LU3G_FM_Admin {
 				break;
 			case 'number':
 				echo '<input type="number" class="fm-input fm-input--short" min="0" max="120" name="' . esc_attr( $name ) . '" value="' . (int) $val . '"' . $dis . '>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				break;
+			case 'text':
+				echo '<input type="text" class="fm-input" name="' . esc_attr( $name ) . '" value="' . esc_attr( (string) $val ) . '" spellcheck="false"' . $dis . '>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 				break;
 			default:
 				echo '<input type="url" class="fm-input" name="' . esc_attr( $name ) . '" value="' . esc_attr( $val ) . '" placeholder="https://…"' . $dis . '>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

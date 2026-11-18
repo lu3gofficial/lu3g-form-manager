@@ -143,6 +143,9 @@ final class LU3G_FM_Scanner {
 				'redirect'   => $s['redirect_to'] ?? '',
 				// Redirect con un tag dinamico di Elementor (es. "URL del post"): l'indirizzo si conosce solo all'invio.
 				'redirect_dynamic' => ! empty( $s['__dynamic__']['redirect_to'] ),
+				// Webhook di Elementor (azione "Webhook"): URL e Dati avanzati.
+				'webhook'          => $s['webhooks'] ?? '',
+				'webhook_dynamic'  => ! empty( $s['__dynamic__']['webhooks'] ),
 			),
 		);
 	}

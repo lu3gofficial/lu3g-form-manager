@@ -32,7 +32,24 @@ final class LU3G_FM_Settings {
 			'webhook_enabled'  => false,      // webhook di default per i form senza un webhook proprio
 			'webhook_url'      => '',
 			'webhook_method'   => 'POST',
+			// Conversioni (1.3.0): eventi verso gli strumenti già presenti nel sito (GTM, GA4, Google Ads, Meta Pixel).
+			'conv_enabled'      => false,
+			'conv_gtm'          => true,
+			'conv_gtm_event'    => 'lu3g_form_submit',
+			'conv_ga4'          => true,
+			'conv_ga4_event'    => 'generate_lead',
+			'conv_ads'          => false,
+			'conv_ads_send_to'  => '',
+			'conv_ads_value'    => '',
+			'conv_ads_currency' => 'EUR',
+			'conv_meta'         => true,
+			'conv_meta_event'   => 'Lead',
 		);
+	}
+
+	/** Chiavi delle conversioni (le stesse per le impostazioni generali e per ogni form). */
+	public static function conv_keys() {
+		return array( 'conv_gtm', 'conv_gtm_event', 'conv_ga4', 'conv_ga4_event', 'conv_ads', 'conv_ads_send_to', 'conv_ads_value', 'conv_ads_currency', 'conv_meta', 'conv_meta_event' );
 	}
 
 	public static function labels() {
@@ -44,6 +61,17 @@ final class LU3G_FM_Settings {
 			'webhook_enabled'  => __( 'Webhook di default attivo', 'lu3g-form-manager' ),
 			'webhook_url'      => __( 'URL del webhook di default', 'lu3g-form-manager' ),
 			'webhook_method'   => __( 'Metodo del webhook di default', 'lu3g-form-manager' ),
+			'conv_enabled'      => __( 'Conversioni attive su tutti i form', 'lu3g-form-manager' ),
+			'conv_gtm'          => __( 'Google Tag Manager (dataLayer)', 'lu3g-form-manager' ),
+			'conv_gtm_event'    => __( 'Nome dell\'evento GTM', 'lu3g-form-manager' ),
+			'conv_ga4'          => __( 'Google Analytics 4', 'lu3g-form-manager' ),
+			'conv_ga4_event'    => __( 'Nome dell\'evento GA4', 'lu3g-form-manager' ),
+			'conv_ads'          => __( 'Google Ads', 'lu3g-form-manager' ),
+			'conv_ads_send_to'  => __( 'Google Ads: send_to (AW-XXXXXXXXX/etichetta)', 'lu3g-form-manager' ),
+			'conv_ads_value'    => __( 'Google Ads: valore della conversione', 'lu3g-form-manager' ),
+			'conv_ads_currency' => __( 'Google Ads: valuta', 'lu3g-form-manager' ),
+			'conv_meta'         => __( 'Meta Pixel', 'lu3g-form-manager' ),
+			'conv_meta_event'   => __( 'Evento Meta (Lead, Contact, CompleteRegistration… o personalizzato)', 'lu3g-form-manager' ),
 		);
 	}
 
@@ -135,10 +163,40 @@ final class LU3G_FM_Settings {
 		if ( isset( $in['webhook_method'] ) ) {
 			$out['webhook_method'] = self::method( $in['webhook_method'] );
 		}
+		return array_merge( $out, self::clean_conv( $in ) );
+	}
+
+	/** Sanifica i campi delle conversioni presenti in $in. */
+	public static function clean_conv( array $in ) {
+		$out = array();
+		foreach ( array( 'conv_enabled', 'conv_gtm', 'conv_ga4', 'conv_ads', 'conv_meta' ) as $k ) {
+			if ( isset( $in[ $k ] ) ) {
+				$out[ $k ] = filter_var( $in[ $k ], FILTER_VALIDATE_BOOLEAN );
+			}
+		}
+		foreach ( array( 'conv_gtm_event', 'conv_ga4_event', 'conv_meta_event' ) as $k ) {
+			if ( isset( $in[ $k ] ) ) {
+				$out[ $k ] = substr( preg_replace( '/[^A-Za-z0-9_\-]/', '', (string) $in[ $k ] ), 0, 40 );
+			}
+		}
+		if ( isset( $in['conv_ads_send_to'] ) ) {
+			$out['conv_ads_send_to'] = preg_replace( '#[^A-Za-z0-9_\-/]#', '', (string) $in['conv_ads_send_to'] );
+		}
+		if ( isset( $in['conv_ads_value'] ) ) {
+			$v                     = str_replace( ',', '.', trim( (string) $in['conv_ads_value'] ) );
+			$out['conv_ads_value'] = is_numeric( $v ) ? (string) (float) $v : '';
+		}
+		if ( isset( $in['conv_ads_currency'] ) ) {
+			$c                        = strtoupper( preg_replace( '/[^A-Za-z]/', '', (string) $in['conv_ads_currency'] ) );
+			$out['conv_ads_currency'] = 3 === strlen( $c ) ? $c : 'EUR';
+		}
 		return $out;
 	}
 
 	private static function normalize( array $s ) {
+		foreach ( array( 'conv_enabled', 'conv_gtm', 'conv_ga4', 'conv_ads', 'conv_meta' ) as $k ) {
+			$s[ $k ] = (bool) $s[ $k ];
+		}
 		$s['retention_months'] = (int) $s['retention_months'];
 		$s['webhook_enabled']  = (bool) $s['webhook_enabled'];
 		$s['webhook_method']   = self::method( $s['webhook_method'] );
@@ -180,6 +238,9 @@ final class LU3G_FM_Settings {
 				'url'    => '',
 				'method' => 'POST',
 			),
+			'conv'     => array(
+				'mode' => 'default',         // default = impostazioni generali (se attive), custom = sue, off = nessuna
+			),
 		);
 	}
 
@@ -187,7 +248,7 @@ final class LU3G_FM_Settings {
 		$all = get_option( self::FORMS, array() );
 		$cfg = isset( $all[ $key ] ) && is_array( $all[ $key ] ) ? $all[ $key ] : array();
 		$def = self::form_defaults();
-		foreach ( array( 'admin', 'user', 'webhook' ) as $group ) {
+		foreach ( array( 'admin', 'user', 'webhook', 'conv' ) as $group ) {
 			$cfg[ $group ] = array_merge( $def[ $group ], isset( $cfg[ $group ] ) && is_array( $cfg[ $group ] ) ? $cfg[ $group ] : array() );
 		}
 		$cfg['redirect'] = isset( $cfg['redirect'] ) ? (string) $cfg['redirect'] : '';
@@ -201,6 +262,7 @@ final class LU3G_FM_Settings {
 		$a = isset( $in['admin'] ) && is_array( $in['admin'] ) ? $in['admin'] : array();
 		$u = isset( $in['user'] ) && is_array( $in['user'] ) ? $in['user'] : array();
 		$w = isset( $in['webhook'] ) && is_array( $in['webhook'] ) ? $in['webhook'] : array();
+		$c = isset( $in['conv'] ) && is_array( $in['conv'] ) ? $in['conv'] : array();
 
 		$all[ $key ] = array(
 			'admin'    => array(
@@ -228,6 +290,10 @@ final class LU3G_FM_Settings {
 				'mode'   => in_array( $w['mode'] ?? '', array( 'default', 'custom', 'off' ), true ) ? $w['mode'] : 'default',
 				'url'    => esc_url_raw( trim( (string) ( $w['url'] ?? '' ) ), array( 'http', 'https' ) ),
 				'method' => self::method( $w['method'] ?? 'POST' ),
+			),
+			'conv'     => array_merge(
+				array( 'mode' => in_array( $c['mode'] ?? '', array( 'default', 'custom', 'off' ), true ) ? $c['mode'] : 'default' ),
+				self::clean_conv( $c )
 			),
 		);
 		update_option( self::FORMS, $all, false );
@@ -274,6 +340,36 @@ final class LU3G_FM_Settings {
 		$a = $c['admin'];
 		return 'lu3g' === $a['mode'] || '' !== $a['to'] . $a['subject'] . $a['from_email'] . $a['from_name'] . $a['reply_to'] . $a['cc'] . $a['bcc']
 			|| $c['user']['enabled'] || '' !== $c['redirect'] || 'default' !== $c['webhook']['mode'];
+	}
+
+	/**
+	 * Conversioni effettive di un form (null = nessuna): [ gtm => nome evento|'', ga4 => …, ads => [send_to, value, currency]|null, meta => … ].
+	 */
+	public static function conversions_for( $key ) {
+		$c = self::form( $key )['conv'];
+		if ( 'off' === $c['mode'] ) {
+			return null;
+		}
+		$g = self::general();
+		if ( 'default' === $c['mode'] ) {
+			if ( ! $g['conv_enabled'] ) {
+				return null;
+			}
+			$src = $g;
+		} else {
+			$src = array_merge( $g, array_intersect_key( $c, array_flip( self::conv_keys() ) ) );
+		}
+		$out = array(
+			'gtm'  => ! empty( $src['conv_gtm'] ) ? (string) $src['conv_gtm_event'] : '',
+			'ga4'  => ! empty( $src['conv_ga4'] ) ? (string) $src['conv_ga4_event'] : '',
+			'ads'  => ! empty( $src['conv_ads'] ) && '' !== $src['conv_ads_send_to'] ? array(
+				'send_to'  => (string) $src['conv_ads_send_to'],
+				'value'    => '' !== (string) $src['conv_ads_value'] ? (float) $src['conv_ads_value'] : null,
+				'currency' => (string) $src['conv_ads_currency'],
+			) : null,
+			'meta' => ! empty( $src['conv_meta'] ) ? (string) $src['conv_meta_event'] : '',
+		);
+		return ( '' === $out['gtm'] && '' === $out['ga4'] && null === $out['ads'] && '' === $out['meta'] ) ? null : $out;
 	}
 
 	/** Webhook effettivo di un form: [ 'url' => ..., 'method' => ... ] oppure null. */

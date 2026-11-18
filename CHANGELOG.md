@@ -1,5 +1,11 @@
 # Registro delle modifiche
 
+## 1.3.0
+- **Conversioni**: a ogni invio riuscito partono gli eventi verso gli strumenti già presenti nel sito: **Google Tag Manager** (dataLayer, evento `lu3g_form_submit`), **Google Analytics 4** (`generate_lead`), **Google Ads** (`conversion` con send_to, valore e valuta) e **Meta Pixel** (`Lead` o un evento personalizzato). Impostazioni generali (ereditate dalla rete su Multisite) e, per ogni form, scheda *Conversioni*: generali, sue o nessuna. Nessun dato personale del form viene inviato agli strumenti.
+- Sui form con conversioni il passaggio alla thank you page avviene 700 ms dopo gli eventi, così non si perdono (Elementor cambierebbe pagina subito).
+- Per controllare: nella console del browser `LU3G_FM_CONV.debug = true` e invia il form; per integrazioni proprie c'è l'evento DOM `lu3g:form-conversion`.
+- **Elenco dei form**: la colonna *Webhook* mostra il webhook di Elementor (servizio, es. savemyleads.com, e se l'azione è attiva o spenta) e quello LU3G con l'esito dell'ultima chiamata. Anche nel pannello di rete.
+
 ## 1.2.0
 - Nuova scheda **Impostazioni Elementor** (la prima del form): tutte le impostazioni vere del form, lette da Elementor e salvate in Elementor: **nome del modulo**, azioni dopo l'invio (Email, Email 2, Redirect, Webhook; le altre, es. Mailchimp, restano), **Email** ed **Email 2** (A, Oggetto, Messaggio, Da Email, Da Nome, Rispondi a, Cc, Ccn, Invia come, Metadati) e **Webhook** di Elementor (URL, Dati avanzati). Un campo vuoto mostra in grigio il predefinito di Elementor; i campi con un tag dinamico sono segnalati e restano dinamici finché non li cambi.
 - Il salvataggio passa da Elementor (`Document::save`), come dall'editor: si vede subito anche aprendo Elementor, CSS e cache della pagina si rigenerano. Si salvano solo i campi cambiati. Prima di ogni modifica si tiene una copia: **"Annulla l'ultima modifica"**.

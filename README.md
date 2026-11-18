@@ -37,6 +37,14 @@ Elementor Pro salva ogni invio in `{prefix}e_submissions` e `{prefix}e_submissio
 La scheda Richieste lo legge (anche gli invii di prima dell'installazione) e "Sposta nel cestino" usa lo stato `trash` di
 Elementor. Se l'archivio non c'è, si vedono le richieste raccolte dal plugin.
 
+## Conversioni (dalla 1.3.0)
+A ogni invio riuscito (`submit_success`, evento jQuery di Elementor Pro sul form) `assets/conversions.js` manda:
+GTM `dataLayer.push({ event, lu3g_form_name, lu3g_form_key, lu3g_page })`, GA4 `gtag('event', nome, { form_name, form_id })`,
+Google Ads `gtag('event', 'conversion', { send_to, value, currency })`, Meta `fbq('track'|'trackCustom', evento, { content_name })`.
+Usa gli strumenti già caricati dal sito (non li carica); niente dati personali. Sui form con conversioni il redirect di
+Elementor viene spostato in `lu3g_redirect_url` (su `new_record`, priorità 50) e lo script lo esegue 700 ms dopo gli eventi.
+Impostazioni generali (base → rete → sito) e per form (generali / sue / nessuna). Debug: `LU3G_FM_CONV.debug = true`.
+
 ## Come si aggancia a Elementor Pro (invio)
 Flusso di un invio in Elementor Pro (verificato sul codice della 4.4, `Ajax_Handler::ajax_send_form`):
 validazione → `elementor_pro/forms/record/actions_before` → `elementor_pro/forms/submit_actions` (dalla 4.0.3) →
@@ -107,7 +115,9 @@ Rispondi a (email LU3G) e nell'URL della thank you page (valori codificati).
 7. **Richieste**: scheda Richieste → "Archivio di Elementor" mostra anche gli invii vecchi; ricerca, date, Dettaglio,
    Esporta CSV (si apre in Excel).
 8. **Retention**: Impostazioni → mesi; le richieste più vecchie spariscono al passaggio giornaliero del cron.
-9. **Multisite**: attiva in rete, crea un sito nuovo (le tabelle compaiono), imposta i valori di rete e blocca un campo,
+9. **Conversioni**: Impostazioni → Conversioni attive; nella console del sito `LU3G_FM_CONV.debug = true`, invia un form:
+   vedi gli eventi partiti; in GTM (modalità anteprima) compare l'evento `lu3g_form_submit`; poi si apre la thank you page.
+10. **Multisite**: attiva in rete, crea un sito nuovo (le tabelle compaiono), imposta i valori di rete e blocca un campo,
    controlla nelle Impostazioni del sito le etichette; Network Admin → LU3G Form → "Riscansiona la rete", Richieste,
    Esporta CSV.
 

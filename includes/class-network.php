@@ -154,9 +154,7 @@ final class LU3G_FM_Network {
 			foreach ( (array) $forms as $key => $f ) {
 				$st    = $status[ $key ] ?? null;
 				$hook  = $tables ? LU3G_FM_Settings::webhook_for( $key ) : null;
-				$badge = ! $hook ? '<span class="fm-pill">' . esc_html__( 'Nessuno', 'lu3g-form-manager' ) . '</span>'
-					: ( ! $st ? '<span class="fm-pill fm-pill--info">' . esc_html__( 'Mai chiamato', 'lu3g-form-manager' ) . '</span>'
-					: ( $st['ok'] ? '<span class="fm-pill fm-pill--ok">OK</span>' : '<span class="fm-pill fm-pill--err">' . esc_html__( 'Errore', 'lu3g-form-manager' ) . '</span>' ) );
+				$badge = LU3G_FM_Admin::webhook_cell( $f, $hook, $st );
 				$manage = get_admin_url( $id, 'admin.php?page=lu3g-form-manager&form=' . rawurlencode( $key ) );
 				printf(
 					'<tr style="--i:%1$d" data-text="%2$s"><td>%3$s</td><td><a class="fm-strong" href="%4$s">%5$s</a><small class="fm-mono">%6$s</small></td><td>%7$s<small>%8$s</small></td><td class="num">%9$s</td><td>%10$s</td><td class="fm-actions"><a class="fm-btn fm-btn--small" href="%4$s">%11$s</a></td></tr>',
@@ -169,7 +167,7 @@ final class LU3G_FM_Network {
 					esc_html( $f['post_title'] ),
 					esc_html( LU3G_FM_Scanner::type_label( $f['post_type'] ) ),
 					$tables ? (int) ( $counts[ $key ]['n'] ?? 0 ) : '—',
-					$tables ? $badge : '<span class="fm-pill">' . esc_html__( 'Plugin non attivo', 'lu3g-form-manager' ) . '</span>', // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- costruito escapato
+					$badge, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- costruito escapato
 					esc_html__( 'Gestisci', 'lu3g-form-manager' )
 				);
 			}
@@ -269,6 +267,10 @@ final class LU3G_FM_Network {
 		LU3G_FM_Admin::setting( 'webhook_enabled', $net, $net, true, 'switch', true );
 		LU3G_FM_Admin::setting( 'webhook_url', $net, $net, true, 'url', true );
 		LU3G_FM_Admin::setting( 'webhook_method', $net, $net, true, 'method', true );
+		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Conversioni di default', 'lu3g-form-manager' ) . '</h3>';
+		foreach ( array( 'conv_enabled' => 'switch', 'conv_gtm' => 'switch', 'conv_gtm_event' => 'text', 'conv_ga4' => 'switch', 'conv_ga4_event' => 'text', 'conv_ads' => 'switch', 'conv_ads_send_to' => 'text', 'conv_ads_value' => 'text', 'conv_ads_currency' => 'text', 'conv_meta' => 'switch', 'conv_meta_event' => 'text' ) as $ck => $ct ) {
+			LU3G_FM_Admin::setting( $ck, $net, $net, true, $ct, true );
+		}
 		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Retention di default', 'lu3g-form-manager' ) . '</h3>';
 		LU3G_FM_Admin::setting( 'retention_months', $net, $net, true, 'number', true );
 		echo '</div><div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div></form>';
