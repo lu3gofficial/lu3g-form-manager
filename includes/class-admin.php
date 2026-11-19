@@ -266,6 +266,7 @@ final class LU3G_FM_Admin {
 				'redirect'    => __( 'Thank you page', 'lu3g-form-manager' ),
 				'emails'      => __( 'Email personalizzate', 'lu3g-form-manager' ),
 				'webhook'     => __( 'Log webhook', 'lu3g-form-manager' ),
+				'tracking'    => __( 'Tracciamento', 'lu3g-form-manager' ),
 				'submissions' => __( 'Richieste', 'lu3g-form-manager' ),
 			),
 			$tab,
@@ -334,6 +335,10 @@ final class LU3G_FM_Admin {
 			self::editor( 'user', $u, $form );
 		}
 
+		if ( 'tracking' === $tab ) {
+			self::section_tracking( $form, $cfg );
+		}
+
 		echo '<div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary" data-save>' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div>';
 		// Gli altri campi del form (delle altre schede) viaggiano nascosti: si salva sempre tutto insieme.
 		echo '<script type="application/json" data-form-cfg>' . wp_json_encode( $cfg ) . '</script>';
@@ -342,6 +347,79 @@ final class LU3G_FM_Admin {
 		if ( 'webhook' === $tab ) {
 			self::section_webhooks( $key );
 		}
+	}
+
+	/** Scheda Tracciamento del form: evento nel dataLayer, campi email e telefono, anteprima di quello che arriva a GTM. */
+	private static function section_tracking( array $form, array $cfg ) {
+		$g   = LU3G_FM_Settings::general();
+		$t   = $cfg['trk'];
+		$det = LU3G_FM_Tracking::fields( $form, array_merge( $t, array( 'email' => '', 'phone' => '' ) ) );
+		$lbl = wp_list_pluck( $form['fields'], 'label', 'id' );
+
+		if ( ! $g['trk_enabled'] ) {
+			echo '<div class="fm-alert"><strong>' . esc_html__( 'Il tracciamento è spento', 'lu3g-form-manager' ) . '</strong><span>' . esc_html__( 'Puoi preparare questo form, ma nessun evento parte finché non accendi "Eventi dei form nel dataLayer" nelle Impostazioni.', 'lu3g-form-manager' ) . ' <a href="' . esc_url( self::url( array( 'tab' => 'settings' ) ) ) . '">' . esc_html__( 'Vai alle Impostazioni', 'lu3g-form-manager' ) . ' →</a></span></div>';
+		}
+
+		echo '<div class="fm-card fm-card--switch"><div><h3>' . esc_html__( 'Evento per Google Tag Manager', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Dopo ogni invio riuscito il plugin mette un evento nel dataLayer. In GTM basta un attivatore "Evento personalizzato" con questo nome.', 'lu3g-form-manager' ) . '</p></div>';
+		self::switch_html( 'trk[enabled]', __( 'Traccia questo form', 'lu3g-form-manager' ), $t['enabled'] );
+		echo '</div>';
+
+		echo '<div class="fm-card"><div class="fm-grid">';
+		printf(
+			'<label class="fm-field"><span>%1$s</span><input type="text" name="trk[event]" value="%2$s" placeholder="%3$s" spellcheck="false" data-trk-event><small>%4$s</small></label>',
+			esc_html__( 'Nome dell\'evento', 'lu3g-form-manager' ),
+			esc_attr( $t['event'] ),
+			esc_attr( $g['trk_event'] ),
+			/* translators: %s: nome generale dell'evento */
+			esc_html( sprintf( __( 'Vuoto: %s (impostazioni generali). Es. contract_submit per un form contratto.', 'lu3g-form-manager' ), $g['trk_event'] ) )
+		);
+		echo '<span></span>';
+		foreach ( array( 'email' => __( 'Campo email', 'lu3g-form-manager' ), 'phone' => __( 'Campo telefono', 'lu3g-form-manager' ) ) as $k => $label ) {
+			/* translators: %s: campo del form */
+			$auto = '' !== $det[ $k ] ? sprintf( __( 'Riconosciuto da solo: %s', 'lu3g-form-manager' ), $lbl[ $det[ $k ] ] ?? $det[ $k ] ) : __( 'Riconosciuto da solo: nessuno', 'lu3g-form-manager' );
+			echo '<label class="fm-field"><span>' . esc_html( $label ) . '</span><select name="trk[' . esc_attr( $k ) . ']"><option value="">' . esc_html( $auto ) . '</option>';
+			foreach ( $form['fields'] as $f ) {
+				if ( in_array( $f['type'], array( 'html', 'step', 'honeypot', 'recaptcha', 'recaptcha_v3', 'submit' ), true ) ) {
+					continue;
+				}
+				printf( '<option value="%1$s" %2$s>%3$s</option>', esc_attr( $f['id'] ), selected( $t[ $k ], $f['id'], false ), esc_html( $f['label'] . ' (' . $f['id'] . ')' ) );
+			}
+			echo '</select></label>';
+		}
+		echo '</div></div>';
+
+		// Anteprima dell'evento con dati di esempio.
+		$fields  = LU3G_FM_Tracking::fields( $form, $t );
+		$payload = array(
+			'event'       => '' !== $t['event'] ? $t['event'] : $g['trk_event'],
+			'event_id'    => '1732012345678_k3j9x2abc',
+			'form_name'   => $form['name'],
+			'form_id'     => $form['key'],
+			'page_url'    => $form['post_id'] ? (string) get_permalink( $form['post_id'] ) : home_url( '/' ),
+			'page_title'  => $form['post_id'] ? get_the_title( $form['post_id'] ) : get_bloginfo( 'name' ),
+			'site_domain' => (string) wp_parse_url( home_url(), PHP_URL_HOST ),
+		);
+		if ( $g['trk_pii'] ) {
+			$ud = array();
+			if ( '' !== $fields['email'] ) {
+				$payload['email'] = 'mario.rossi@example.com';
+				$ud['email']      = 'mario.rossi@example.com';
+			}
+			if ( '' !== $fields['phone'] ) {
+				$payload['phone']   = '+' . $g['trk_country'] . '3331234567';
+				$ud['phone_number'] = '+' . $g['trk_country'] . '3331234567';
+			}
+			if ( $ud ) {
+				$payload['user_data'] = $ud;
+			}
+		}
+		echo '<div class="fm-card"><div class="fm-card__head"><h3>' . esc_html__( 'Cosa arriva nel dataLayer', 'lu3g-form-manager' ) . '</h3><span class="fm-help">' . esc_html__( 'Dati di esempio', 'lu3g-form-manager' ) . '</span></div>';
+		echo '<pre class="fm-code" data-trk-preview data-default-event="' . esc_attr( $g['trk_event'] ) . '">' . esc_html( 'dataLayer.push(' . wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) . ');' ) . '</pre>';
+		echo '<p class="fm-note">' . esc_html__( 'In GTM: attivatore "Evento personalizzato" con il nome dell\'evento; "Variabile di livello dati" per event_id, form_name, user_data.email, user_data.phone_number. Usa event_id come ID evento nei tag Meta / CAPI per la deduplica.', 'lu3g-form-manager' ) . '</p>';
+		if ( $g['trk_server'] ) {
+			echo '<p class="fm-note">' . esc_html__( 'Lo stesso event_id viene salvato nella richiesta (scheda Richieste) e aggiunto ai dati del webhook di Elementor come campo "event_id".', 'lu3g-form-manager' ) . '</p>';
+		}
+		echo '</div>';
 	}
 
 	private static function email_fields( array $form ) {
@@ -741,7 +819,29 @@ final class LU3G_FM_Admin {
 		self::setting( 'footer', $g, $net, $multi, 'textarea' );
 		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Conservazione dei dati', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Le richieste più vecchie si cancellano da sole ogni giorno (GDPR). 0 = non cancellare mai.', 'lu3g-form-manager' ) . '</p>';
 		self::setting( 'retention_months', $g, $net, $multi, 'number' );
-		echo '</div><div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div></form>';
+		echo '</div>';
+		self::tracking_settings( $g, $net, $multi, false );
+		echo '<div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div></form>';
+	}
+
+	/** Impostazioni del tracciamento (sito e rete). */
+	public static function tracking_settings( array $values, array $net, $multi, $network_mode ) {
+		echo '<div class="fm-card"><h3>' . esc_html__( 'Tracciamento (Google Tag Manager)', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Il plugin mette gli eventi dei form nel dataLayer, uguali su tutti i siti; GTM decide dove mandarli (GA4, Google Ads, Meta…). Il nome dell\'evento si può cambiare per ogni form (scheda Tracciamento). Se nel sito c\'è già uno script scritto a mano che fa la stessa cosa, toglilo quando accendi questo.', 'lu3g-form-manager' ) . '</p>';
+		self::setting( 'trk_enabled', $values, $net, $multi, 'switch', $network_mode );
+		self::setting( 'trk_event', $values, $net, $multi, 'text', $network_mode );
+		self::setting( 'trk_pii', $values, $net, $multi, 'switch', $network_mode );
+		self::setting( 'trk_country', $values, $net, $multi, 'text', $network_mode );
+		self::setting( 'trk_server', $values, $net, $multi, 'switch', $network_mode );
+		self::setting( 'trk_contacts', $values, $net, $multi, 'switch', $network_mode );
+		self::setting( 'trk_contact_event', $values, $net, $multi, 'text', $network_mode );
+		self::setting( 'trk_debug', $values, $net, $multi, 'switch', $network_mode );
+		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Codice di Google Tag Manager (facoltativo)', 'lu3g-form-manager' ) . '</h3><p class="fm-help">' . esc_html__( 'Incolla qui lo snippet di GTM del sito così com\'è (anche quello server-side con dominio proprio) solo se non è già nel tema, in WPCode o in un altro plugin: due snippet uguali contano ogni evento due volte.', 'lu3g-form-manager' ) . '</p>';
+		self::setting( 'trk_head', $values, $net, $multi, 'code', $network_mode );
+		self::setting( 'trk_body', $values, $net, $multi, 'code', $network_mode );
+		if ( ! $network_mode ) {
+			echo '<div class="fm-inline"><button type="button" class="fm-btn" data-trk-check>' . esc_html__( 'Controlla la pagina iniziale', 'lu3g-form-manager' ) . '</button><span class="fm-help">' . esc_html__( 'Cerca GTM doppi, script dei form scritti a mano e lo script del plugin (dopo aver salvato).', 'lu3g-form-manager' ) . '</span></div><ul class="fm-checks" data-trk-result hidden></ul>';
+		}
+		echo '</div>';
 	}
 
 	/**
@@ -789,6 +889,13 @@ final class LU3G_FM_Admin {
 					printf( '<option %1$s>%2$s</option>', selected( $val, $m, false ), esc_html( $m ) );
 				}
 				echo '</select>';
+				break;
+			case 'code':
+				$can = current_user_can( 'unfiltered_html' );
+				echo '<textarea class="fm-input fm-input--code" name="' . esc_attr( $name ) . '" rows="5" spellcheck="false" placeholder="&lt;!-- Google Tag Manager --&gt;"' . ( $lock || ! $can ? ' disabled' : '' ) . '>' . esc_textarea( (string) $val ) . '</textarea>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				if ( ! $can ) {
+					echo '<small class="fm-warn">' . esc_html__( 'Solo un amministratore con il permesso di inserire HTML libero (sul Multisite il super admin) può cambiare questo codice.', 'lu3g-form-manager' ) . '</small>';
+				}
 				break;
 			case 'number':
 				echo '<input type="number" class="fm-input fm-input--short" min="0" max="120" name="' . esc_attr( $name ) . '" value="' . (int) $val . '"' . $dis . '>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -995,6 +1102,14 @@ final class LU3G_FM_Admin {
 				}
 				self::after_elementor_change( $key );
 				wp_send_json_success( array( 'message' => $msg, 'reload' => true ) );
+				break;
+
+			case 'trk_check':
+				$r = LU3G_FM_Tracking::check();
+				if ( is_wp_error( $r ) ) {
+					wp_send_json_error( array( 'message' => $r->get_error_message() ) );
+				}
+				wp_send_json_success( array( 'checks' => $r ) );
 				break;
 
 			case 'save_settings':

@@ -2,7 +2,8 @@
 
 Tutti i form di **Elementor Pro** del sito in un unico pannello: destinatari, thank you page e webhook si cambiano
 senza aprire Elementor; le richieste vengono raccolte (con export CSV e retention), i webhook hanno un log con reinvio,
-le email Admin e Utente si personalizzano con un template LU3G e l'anteprima live. Funziona anche su **Multisite**.
+le email Admin e Utente si personalizzano con un template LU3G e l'anteprima live, e gli invii diventano eventi
+per **Google Tag Manager** con un `event_id` condiviso fra browser e server. Funziona anche su **Multisite**.
 
 Plugin WordPress di LU3G Agenzia Web. Requisiti: PHP 7.4+, WordPress 6.0+, Elementor Pro (le email personalizzate
 richiedono Elementor Pro 4.0.3 o successivo).
@@ -18,11 +19,14 @@ lu3g-form-manager/
 │  ├─ class-settings.php   impostazioni base → rete → sito (con blocchi) e override per form
 │  ├─ class-scanner.php    scansione di _elementor_data (pagine, articoli, template, popup), cache
 │  ├─ class-runtime.php    aggancio agli invii di Elementor Pro
-│  ├─ class-webhook.php    payload JSON, invio, log, reinvio, test
+│  ├─ class-webhook.php    vecchio webhook LU3G (1.0–1.3): solo il reinvio delle chiamate nel log
+│  ├─ class-webhook-log.php log delle chiamate del webhook di Elementor, reinvio
+│  ├─ class-tracking.php   tracciamento GTM: codice head/body, configurazione dello script, event_id sul server, controllo
+│  ├─ class-elementor-editor.php lettura e scrittura delle impostazioni del form in Elementor
 │  ├─ class-emails.php     placeholder, template HTML, anteprima, invio
 │  ├─ class-admin.php      pannello del sito, azioni AJAX, export CSV
 │  └─ class-network.php    pannello di rete (Multisite), scansione a blocchi, cron
-└─ assets/                 CSS/JS dell'interfaccia, logo e icona LU3G, font Manrope (SIL OFL)
+└─ assets/                 CSS/JS dell'interfaccia, tracking.js (sito), logo e icona LU3G, font Manrope (SIL OFL)
 ```
 
 ## Impostazioni di Elementor (dalla 1.2.0)
@@ -59,9 +63,38 @@ Il webhook resta quello di Elementor (scheda Impostazioni Elementor: URL e Dati 
 `elementor_pro/forms/webhooks/response` (scrive il log: stato, risposta, errore, durata). "Reinvia" rimanda gli stessi
 dati allo stesso URL in POST come Elementor. Il vecchio "Webhook LU3G" (1.0–1.3) è stato tolto.
 
+## Tracciamento per Google Tag Manager (dalla 1.5.0)
+Spento di serie: Impostazioni → *Tracciamento* (su Multisite si eredita dalla rete). Il plugin non manda niente a Google o
+Meta: mette nel `dataLayer` un evento uguale su tutti i siti e GTM decide dove mandarlo.
+
+```js
+dataLayer.push({
+  event: 'lead_submit',            // o il nome scelto nella scheda Tracciamento del form (es. contract_submit)
+  event_id: '1732012345678_k3j9x2abc',
+  form_name: 'Richiesta preventivo', form_id: '12:a1b2c3',
+  page_url: '…', page_title: '…', site_domain: 'example.com',
+  email: 'mario.rossi@example.com', phone: '+393331234567',          // se "Email e telefono" è attivo
+  user_data: { email: 'mario.rossi@example.com', phone_number: '+393331234567' }
+});
+```
+- `assets/tracking.js` si carica nel `<head>` solo con il tracciamento acceso (mai nell'editor di Elementor). All'invio
+  (fase di cattura, prima del gestore di Elementor) legge email e telefono, crea l'`event_id` e lo aggiunge al form come
+  campo nascosto `lu3g_event_id`; dopo `submit_success` di Elementor mette l'evento nel dataLayer. jQuery può arrivare
+  dopo (WP Rocket "ritarda JS"): l'ascolto si aggancia appena c'è.
+- Campi: quelli scelti nella scheda, altrimenti il primo campo di tipo email / tel, altrimenti un id come `telefono`,
+  `cellulare`, `phone`. Telefono: `+` e `00` rispettati, numeri senza prefisso con quello impostato (39); un numero che
+  inizia col prefisso è già completo solo se restano almeno 9 cifre (così `3931234567` diventa `+393931234567`).
+- Server: l'`event_id` (o uno nuovo, se lo script non c'era) va nella richiesta salvata, nei dati del webhook di Elementor
+  (`event_id`, filtro `request_args` a priorità 20, prima del log) e nel placeholder `{{event_id}}`.
+- Click: `contact_click` con `contact_type` whatsapp / phone / email, `click_url`, `click_text`.
+- Codice head/body: facoltativo, per lo snippet di GTM del sito; salvabile solo con `unfiltered_html`.
+- "Controlla la pagina iniziale" scarica la home e conta i `gtm.start`, cerca gtag.js, Meta Pixel, script inline con
+  `submit_success` (vecchi script scritti a mano) e lo script del plugin.
+- Debug: impostazione *Modalità debug* oppure `?lu3g_debug=1` nell'indirizzo → eventi nella console.
+
 ## Placeholder delle email
 `{{id_campo}}` per ogni campo, `{{all_fields}}` (tabella), `{{form_name}}`, `{{page_url}}`, `{{page_title}}`,
-`{{date}}`, `{{time}}`, `{{site_name}}`, `{{ip}}`. Valori escapati nel corpo HTML. Funzionano anche in A, Cc, Ccn,
+`{{date}}`, `{{time}}`, `{{site_name}}`, `{{ip}}`, `{{event_id}}`. Valori escapati nel corpo HTML. Funzionano anche in A, Cc, Ccn,
 Rispondi a (email LU3G) e nell'URL della thank you page (valori codificati).
 
 ## Multisite
@@ -77,6 +110,11 @@ Rispondi a (email LU3G) e nell'URL della thank you page (valori codificati).
 - Scansione: cache per sito; "Riscansiona la rete" a blocchi di 10 siti; cron giornaliero su 20 siti con cache vecchia.
 
 ## Limiti noti
+- **Tracciamento e thank you page**: quando il form manda a un'altra pagina, l'evento parte un istante prima del cambio
+  pagina. I tag di GTM che usano `sendBeacon`/`keepalive` (GA4, Meta, server-side) arrivano; un tag lento potrebbe no.
+- **Tracciamento e consenso**: il plugin non gestisce il consenso cookie. Lo fanno GTM (Consent Mode) e il banner del sito.
+- **Doppio conteggio**: se nel sito resta uno script scritto a mano che ascolta `submit_success`, ogni lead viene contato
+  due volte. "Controlla la pagina iniziale" lo segnala solo se è inline nella pagina, non se è in un file .js.
 - **Email personalizzate solo con Elementor Pro 4.0.3+**: prima non esiste il filtro per togliere l'email di Elementor.
   Sulle versioni vecchie il pannello lo dice e restano gli override dell'email di Elementor.
 - **"Rispondi a" con l'email di Elementor** accetta solo un campo email del form, non un indirizzo scritto (limite di
@@ -106,7 +144,10 @@ Rispondi a (email LU3G) e nell'URL della thank you page (valori codificati).
 7. **Richieste**: scheda Richieste → "Archivio di Elementor" mostra anche gli invii vecchi; ricerca, date, Dettaglio,
    Esporta CSV (si apre in Excel).
 8. **Retention**: Impostazioni → mesi; le richieste più vecchie spariscono al passaggio giornaliero del cron.
-9. **Multisite**: attiva in rete, crea un sito nuovo (le tabelle compaiono), imposta i valori di rete e blocca un campo,
+9. **Tracciamento**: Impostazioni → accendi *Eventi dei form nel dataLayer* e *Modalità debug* → salva → "Controlla la
+   pagina iniziale" → invia un form dal sito con la console aperta: c'è `lead_submit` con email e telefono; in GTM
+   Anteprima compare lo stesso evento. Scheda Richieste e Log webhook: c'è lo stesso `event_id`.
+10. **Multisite**: attiva in rete, crea un sito nuovo (le tabelle compaiono), imposta i valori di rete e blocca un campo,
    controlla nelle Impostazioni del sito le etichette; Network Admin → LU3G Form → "Riscansiona la rete", Richieste,
    Esporta CSV.
 

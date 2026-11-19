@@ -2,13 +2,13 @@
 /**
  * Impostazioni.
  *
- * Generali (template email, webhook di default, retention), a tre livelli:
+ * Generali (template email, retention, tracciamento), a tre livelli:
  *   valori di base del plugin → rete (get_site_option, solo Multisite) → sito (get_option).
  * Il sito salva solo i campi che personalizza: un campo non salvato eredita dalla rete. La rete può bloccare dei campi:
  * il sito allora usa il valore di rete e non lo può cambiare. Su un'installazione singola c'è solo il livello sito.
  *
  * Per ogni form (opzione del sito "lu3g_fm_forms_cfg", chiave = "id post:id elemento"): override dell'Email Admin,
- * Email Utente, thank you page e webhook. Un campo vuoto lascia valido il valore impostato in Elementor.
+ * Email Utente, thank you page, webhook e tracciamento. Un campo vuoto lascia valido il valore impostato in Elementor.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -32,24 +32,18 @@ final class LU3G_FM_Settings {
 			'webhook_enabled'  => false,      // webhook di default per i form senza un webhook proprio
 			'webhook_url'      => '',
 			'webhook_method'   => 'POST',
-			// Conversioni (1.3.0): eventi verso gli strumenti già presenti nel sito (GTM, GA4, Google Ads, Meta Pixel).
-			'conv_enabled'      => false,
-			'conv_gtm'          => true,
-			'conv_gtm_event'    => 'lu3g_form_submit',
-			'conv_ga4'          => true,
-			'conv_ga4_event'    => 'generate_lead',
-			'conv_ads'          => false,
-			'conv_ads_send_to'  => '',
-			'conv_ads_value'    => '',
-			'conv_ads_currency' => 'EUR',
-			'conv_meta'         => true,
-			'conv_meta_event'   => 'Lead',
+			// Tracciamento (1.5.0): eventi nel dataLayer per Google Tag Manager.
+			'trk_enabled'       => false,      // eventi dei form nel dataLayer
+			'trk_event'         => 'lead_submit',
+			'trk_pii'           => true,       // email e telefono (normalizzati) nell'evento e in user_data
+			'trk_country'       => '39',       // prefisso per i numeri scritti senza
+			'trk_server'        => true,       // stesso event_id nella richiesta salvata e nel webhook
+			'trk_contacts'      => false,      // click su WhatsApp, telefono, email
+			'trk_contact_event' => 'contact_click',
+			'trk_debug'         => false,      // eventi scritti nella console del browser
+			'trk_head'          => '',         // codice nel <head> (es. Google Tag Manager)
+			'trk_body'          => '',         // codice subito dopo <body> (es. noscript di GTM)
 		);
-	}
-
-	/** Chiavi delle conversioni (le stesse per le impostazioni generali e per ogni form). */
-	public static function conv_keys() {
-		return array( 'conv_gtm', 'conv_gtm_event', 'conv_ga4', 'conv_ga4_event', 'conv_ads', 'conv_ads_send_to', 'conv_ads_value', 'conv_ads_currency', 'conv_meta', 'conv_meta_event' );
 	}
 
 	public static function labels() {
@@ -61,17 +55,16 @@ final class LU3G_FM_Settings {
 			'webhook_enabled'  => __( 'Webhook di default attivo', 'lu3g-form-manager' ),
 			'webhook_url'      => __( 'URL del webhook di default', 'lu3g-form-manager' ),
 			'webhook_method'   => __( 'Metodo del webhook di default', 'lu3g-form-manager' ),
-			'conv_enabled'      => __( 'Conversioni attive su tutti i form', 'lu3g-form-manager' ),
-			'conv_gtm'          => __( 'Google Tag Manager (dataLayer)', 'lu3g-form-manager' ),
-			'conv_gtm_event'    => __( 'Nome dell\'evento GTM', 'lu3g-form-manager' ),
-			'conv_ga4'          => __( 'Google Analytics 4', 'lu3g-form-manager' ),
-			'conv_ga4_event'    => __( 'Nome dell\'evento GA4', 'lu3g-form-manager' ),
-			'conv_ads'          => __( 'Google Ads', 'lu3g-form-manager' ),
-			'conv_ads_send_to'  => __( 'Google Ads: send_to (AW-XXXXXXXXX/etichetta)', 'lu3g-form-manager' ),
-			'conv_ads_value'    => __( 'Google Ads: valore della conversione', 'lu3g-form-manager' ),
-			'conv_ads_currency' => __( 'Google Ads: valuta', 'lu3g-form-manager' ),
-			'conv_meta'         => __( 'Meta Pixel', 'lu3g-form-manager' ),
-			'conv_meta_event'   => __( 'Evento Meta (Lead, Contact, CompleteRegistration… o personalizzato)', 'lu3g-form-manager' ),
+			'trk_enabled'       => __( 'Eventi dei form nel dataLayer', 'lu3g-form-manager' ),
+			'trk_event'         => __( 'Nome dell\'evento (se il form non ne ha uno suo)', 'lu3g-form-manager' ),
+			'trk_pii'           => __( 'Email e telefono nell\'evento (anche in user_data, per Enhanced Conversions e lato server)', 'lu3g-form-manager' ),
+			'trk_country'       => __( 'Prefisso internazionale per i numeri scritti senza', 'lu3g-form-manager' ),
+			'trk_server'        => __( 'Stesso event_id nella richiesta salvata e nel webhook (deduplica con Meta CAPI, CRM)', 'lu3g-form-manager' ),
+			'trk_contacts'      => __( 'Click su WhatsApp, telefono ed email', 'lu3g-form-manager' ),
+			'trk_contact_event' => __( 'Nome dell\'evento dei click', 'lu3g-form-manager' ),
+			'trk_debug'         => __( 'Modalità debug: eventi nella console del browser', 'lu3g-form-manager' ),
+			'trk_head'          => __( 'Codice nel <head> (es. Google Tag Manager)', 'lu3g-form-manager' ),
+			'trk_body'          => __( 'Codice subito dopo <body> (es. noscript di GTM)', 'lu3g-form-manager' ),
 		);
 	}
 
@@ -163,38 +156,46 @@ final class LU3G_FM_Settings {
 		if ( isset( $in['webhook_method'] ) ) {
 			$out['webhook_method'] = self::method( $in['webhook_method'] );
 		}
-		return array_merge( $out, self::clean_conv( $in ) );
+		return array_merge( $out, self::clean_trk( $in ) );
 	}
 
-	/** Sanifica i campi delle conversioni presenti in $in. */
-	public static function clean_conv( array $in ) {
+	/** Sanifica i campi del tracciamento presenti in $in. Il codice head/body solo da chi può inserire HTML libero. */
+	public static function clean_trk( array $in ) {
 		$out = array();
-		foreach ( array( 'conv_enabled', 'conv_gtm', 'conv_ga4', 'conv_ads', 'conv_meta' ) as $k ) {
+		foreach ( self::trk_bools() as $k ) {
 			if ( isset( $in[ $k ] ) ) {
 				$out[ $k ] = filter_var( $in[ $k ], FILTER_VALIDATE_BOOLEAN );
 			}
 		}
-		foreach ( array( 'conv_gtm_event', 'conv_ga4_event', 'conv_meta_event' ) as $k ) {
+		foreach ( array( 'trk_event', 'trk_contact_event' ) as $k ) {
 			if ( isset( $in[ $k ] ) ) {
-				$out[ $k ] = substr( preg_replace( '/[^A-Za-z0-9_\-]/', '', (string) $in[ $k ] ), 0, 40 );
+				$v         = self::event_name( $in[ $k ] );
+				$out[ $k ] = '' !== $v ? $v : self::defaults()[ $k ];
 			}
 		}
-		if ( isset( $in['conv_ads_send_to'] ) ) {
-			$out['conv_ads_send_to'] = preg_replace( '#[^A-Za-z0-9_\-/]#', '', (string) $in['conv_ads_send_to'] );
+		if ( isset( $in['trk_country'] ) ) {
+			$c                  = preg_replace( '/\D/', '', (string) $in['trk_country'] );
+			$out['trk_country'] = '' !== $c ? substr( $c, 0, 4 ) : '39';
 		}
-		if ( isset( $in['conv_ads_value'] ) ) {
-			$v                     = str_replace( ',', '.', trim( (string) $in['conv_ads_value'] ) );
-			$out['conv_ads_value'] = is_numeric( $v ) ? (string) (float) $v : '';
-		}
-		if ( isset( $in['conv_ads_currency'] ) ) {
-			$c                        = strtoupper( preg_replace( '/[^A-Za-z]/', '', (string) $in['conv_ads_currency'] ) );
-			$out['conv_ads_currency'] = 3 === strlen( $c ) ? $c : 'EUR';
+		foreach ( array( 'trk_head', 'trk_body' ) as $k ) {
+			if ( isset( $in[ $k ] ) && current_user_can( 'unfiltered_html' ) ) {
+				$out[ $k ] = substr( trim( (string) $in[ $k ] ), 0, 20000 );
+			}
 		}
 		return $out;
 	}
 
+	public static function trk_bools() {
+		return array( 'trk_enabled', 'trk_pii', 'trk_server', 'trk_contacts', 'trk_debug' );
+	}
+
+	/** Nome di un evento del dataLayer: lettere, numeri, _ - . (massimo 40). */
+	public static function event_name( $v ) {
+		return substr( preg_replace( '/[^A-Za-z0-9_\-.]/', '', (string) $v ), 0, 40 );
+	}
+
 	private static function normalize( array $s ) {
-		foreach ( array( 'conv_enabled', 'conv_gtm', 'conv_ga4', 'conv_ads', 'conv_meta' ) as $k ) {
+		foreach ( self::trk_bools() as $k ) {
 			$s[ $k ] = (bool) $s[ $k ];
 		}
 		$s['retention_months'] = (int) $s['retention_months'];
@@ -238,8 +239,11 @@ final class LU3G_FM_Settings {
 				'url'    => '',
 				'method' => 'POST',
 			),
-			'conv'     => array(
-				'mode' => 'default',         // default = impostazioni generali (se attive), custom = sue, off = nessuna
+			'trk'      => array(
+				'enabled' => true,           // con il tracciamento attivo nelle impostazioni, questo form manda l'evento
+				'event'   => '',             // vuoto: il nome generale (es. lead_submit)
+				'email'   => '',             // id del campo email; vuoto: si riconosce da solo
+				'phone'   => '',             // id del campo telefono; vuoto: si riconosce da solo
 			),
 		);
 	}
@@ -248,7 +252,7 @@ final class LU3G_FM_Settings {
 		$all = get_option( self::FORMS, array() );
 		$cfg = isset( $all[ $key ] ) && is_array( $all[ $key ] ) ? $all[ $key ] : array();
 		$def = self::form_defaults();
-		foreach ( array( 'admin', 'user', 'webhook', 'conv' ) as $group ) {
+		foreach ( array( 'admin', 'user', 'webhook', 'trk' ) as $group ) {
 			$cfg[ $group ] = array_merge( $def[ $group ], isset( $cfg[ $group ] ) && is_array( $cfg[ $group ] ) ? $cfg[ $group ] : array() );
 		}
 		$cfg['redirect'] = isset( $cfg['redirect'] ) ? (string) $cfg['redirect'] : '';
@@ -262,7 +266,7 @@ final class LU3G_FM_Settings {
 		$a = isset( $in['admin'] ) && is_array( $in['admin'] ) ? $in['admin'] : array();
 		$u = isset( $in['user'] ) && is_array( $in['user'] ) ? $in['user'] : array();
 		$w = isset( $in['webhook'] ) && is_array( $in['webhook'] ) ? $in['webhook'] : array();
-		$c = isset( $in['conv'] ) && is_array( $in['conv'] ) ? $in['conv'] : array();
+		$t = isset( $in['trk'] ) && is_array( $in['trk'] ) ? $in['trk'] : array();
 
 		$all[ $key ] = array(
 			'admin'    => array(
@@ -291,9 +295,11 @@ final class LU3G_FM_Settings {
 				'url'    => esc_url_raw( trim( (string) ( $w['url'] ?? '' ) ), array( 'http', 'https' ) ),
 				'method' => self::method( $w['method'] ?? 'POST' ),
 			),
-			'conv'     => array_merge(
-				array( 'mode' => in_array( $c['mode'] ?? '', array( 'default', 'custom', 'off' ), true ) ? $c['mode'] : 'default' ),
-				self::clean_conv( $c )
+			'trk'      => array(
+				'enabled' => ! isset( $t['enabled'] ) || filter_var( $t['enabled'], FILTER_VALIDATE_BOOLEAN ),
+				'event'   => self::event_name( $t['event'] ?? '' ),
+				'email'   => sanitize_key( $t['email'] ?? '' ),
+				'phone'   => sanitize_key( $t['phone'] ?? '' ),
 			),
 		);
 		update_option( self::FORMS, $all, false );
@@ -340,36 +346,6 @@ final class LU3G_FM_Settings {
 		$a = $c['admin'];
 		return 'lu3g' === $a['mode'] || '' !== $a['to'] . $a['subject'] . $a['from_email'] . $a['from_name'] . $a['reply_to'] . $a['cc'] . $a['bcc']
 			|| $c['user']['enabled'] || '' !== $c['redirect'] || 'default' !== $c['webhook']['mode'];
-	}
-
-	/**
-	 * Conversioni effettive di un form (null = nessuna): [ gtm => nome evento|'', ga4 => …, ads => [send_to, value, currency]|null, meta => … ].
-	 */
-	public static function conversions_for( $key ) {
-		$c = self::form( $key )['conv'];
-		if ( 'off' === $c['mode'] ) {
-			return null;
-		}
-		$g = self::general();
-		if ( 'default' === $c['mode'] ) {
-			if ( ! $g['conv_enabled'] ) {
-				return null;
-			}
-			$src = $g;
-		} else {
-			$src = array_merge( $g, array_intersect_key( $c, array_flip( self::conv_keys() ) ) );
-		}
-		$out = array(
-			'gtm'  => ! empty( $src['conv_gtm'] ) ? (string) $src['conv_gtm_event'] : '',
-			'ga4'  => ! empty( $src['conv_ga4'] ) ? (string) $src['conv_ga4_event'] : '',
-			'ads'  => ! empty( $src['conv_ads'] ) && '' !== $src['conv_ads_send_to'] ? array(
-				'send_to'  => (string) $src['conv_ads_send_to'],
-				'value'    => '' !== (string) $src['conv_ads_value'] ? (float) $src['conv_ads_value'] : null,
-				'currency' => (string) $src['conv_ads_currency'],
-			) : null,
-			'meta' => ! empty( $src['conv_meta'] ) ? (string) $src['conv_meta_event'] : '',
-		);
-		return ( '' === $out['gtm'] && '' === $out['ga4'] && null === $out['ads'] && '' === $out['meta'] ) ? null : $out;
 	}
 
 	/** Webhook effettivo di un form: [ 'url' => ..., 'method' => ... ] oppure null. */

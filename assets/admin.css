@@ -255,3 +255,16 @@ small.fm-help { display: block; margin: 6px 0 0; font-size: 12px; }
 	.fm-chip.is-inserted { animation: fm-pop .4s var(--ease); }
 	@keyframes fm-pop { 50% { transform: scale(1.12); } }
 }
+
+/* Tracciamento (1.5.0) */
+.fm-code { overflow: auto; max-height: 420px; margin: 0; padding: 16px; border-radius: 12px; background: #09090b; color: #d4d4d8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+.fm-input--code { width: 100%; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.fm-checks { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+.fm-check { position: relative; padding: 10px 14px 10px 38px; border-radius: 10px; line-height: 1.5; }
+.fm-check::before { position: absolute; top: 9px; left: 14px; font-weight: 800; }
+.fm-check--ok { background: #dcfce7; color: #166534; }
+.fm-check--ok::before { content: "✓"; }
+.fm-check--warn { background: #fffbeb; color: #78350f; }
+.fm-check--warn::before { content: "!"; }
+.fm-check--info { background: #eff6ff; color: #1e3a8a; }
+.fm-check--info::before { content: "i"; }

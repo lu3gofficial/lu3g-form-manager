@@ -10,7 +10,7 @@
  *    l'azione Email di Elementor legge A, Oggetto, Da, Da nome, Rispondi a, Cc, Ccn. Un override vuoto lascia il valore
  *    di Elementor. Niente viene scritto in _elementor_data.
  * 2. submit_actions: con l'Email Admin LU3G si toglie "email", con l'Email Utente LU3G si toglie "email2" (niente doppioni).
- * 3. new_record: si salva la richiesta, parte il webhook, partono le email LU3G e, se c'è una thank you page, si mette
+ * 3. new_record: si salva la richiesta (con l'event_id del tracciamento), parte il webhook, partono le email LU3G e, se c'è una thank you page, si mette
  *    nella risposta "redirect_url" (è proprio quello che fa l'azione Redirect di Elementor, quindi funziona anche se il
  *    form non ha l'azione Redirect, e vince su quella).
  * Qualunque errore qui viene catturato: il form del visitatore non deve mai fallire per colpa di questo plugin.
@@ -112,13 +112,19 @@ final class LU3G_FM_Runtime {
 			$form = self::form_info( $key, $record );
 			$ctx  = self::context( $form, $record );
 
+			// Tracciamento: l'event_id dell'evento nel browser resta anche nella richiesta salvata.
+			$stored = $ctx['fields'];
+			if ( '' !== $ctx['meta']['event_id'] ) {
+				$stored[] = array( 'id' => 'event_id', 'label' => 'event_id', 'type' => 'hidden', 'value' => $ctx['meta']['event_id'] );
+			}
+
 			$id = LU3G_FM_DB::insert_submission(
 				array(
 					'form_key'   => $key,
 					'form_name'  => mb_substr( $form['name'], 0, 200 ),
 					'post_id'    => (int) $form['post_id'],
 					'page_url'   => $ctx['meta']['page_url'],
-					'fields'     => wp_json_encode( $ctx['fields'], JSON_UNESCAPED_UNICODE ),
+					'fields'     => wp_json_encode( $stored, JSON_UNESCAPED_UNICODE ),
 					'ip'         => mb_substr( $ctx['meta']['ip'], 0, 64 ),
 					'user_agent' => mb_substr( $ctx['meta']['user_agent'], 0, 500 ),
 					'created'    => current_time( 'mysql', true ),
@@ -243,6 +249,7 @@ final class LU3G_FM_Runtime {
 				'ip'         => $meta['remote_ip'] ?? '',
 				'user_agent' => $meta['user_agent'] ?? '',
 				'time'       => time(),
+				'event_id'   => class_exists( 'LU3G_FM_Tracking' ) ? LU3G_FM_Tracking::event_id_for( $form['key'] ) : '',
 			)
 		);
 	}

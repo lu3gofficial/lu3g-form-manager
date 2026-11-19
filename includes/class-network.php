@@ -265,7 +265,9 @@ final class LU3G_FM_Network {
 		LU3G_FM_Admin::setting( 'footer', $net, $net, true, 'textarea', true );
 		echo '</div><div class="fm-card"><h3>' . esc_html__( 'Retention di default', 'lu3g-form-manager' ) . '</h3>';
 		LU3G_FM_Admin::setting( 'retention_months', $net, $net, true, 'number', true );
-		echo '</div><div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div></form>';
+		echo '</div>';
+		LU3G_FM_Admin::tracking_settings( $net, $net, true, true );
+		echo '<div class="fm-savebar" data-savebar><span>' . esc_html__( 'Modifiche non salvate', 'lu3g-form-manager' ) . '</span><button type="submit" class="fm-btn fm-btn--primary">' . esc_html__( 'Salva', 'lu3g-form-manager' ) . '</button></div></form>';
 	}
 
 	/* ------------------------------------------------------------------ azioni */

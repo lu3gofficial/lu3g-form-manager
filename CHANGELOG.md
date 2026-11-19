@@ -1,5 +1,15 @@
 # Registro delle modifiche
 
+## 1.5.0
+- **Tracciamento per Google Tag Manager** (spento di serie; Impostazioni → *Tracciamento*, ereditabile dalla rete su Multisite). Dopo ogni invio riuscito il plugin mette nel `dataLayer` un evento uguale su tutti i siti: `event` (`lead_submit` o il nome scelto per il form, es. `contract_submit`), `event_id`, `form_name`, `form_id`, `page_url`, `page_title`, `site_domain` e, se attivo, `email` e `phone` anche dentro `user_data` (Enhanced Conversions, server-side). Il plugin non manda niente a Google o Meta: lo fa GTM.
+- **Scheda Tracciamento** in ogni form: acceso/spento, nome dell'evento, campi email e telefono (riconosciuti da soli dal tipo di campo, o scelti a mano), anteprima di quello che arriva nel dataLayer.
+- **Telefono normalizzato** in formato internazionale: gestisce `+`, `00`, numeri esteri e i cellulari che iniziano per 39 (prefisso di default impostabile).
+- **event_id condiviso**: lo stesso ID dell'evento nel browser viene salvato nella richiesta e aggiunto ai dati del webhook di Elementor (campo `event_id`), per la deduplica con Meta CAPI e CRM. Disponibile anche il placeholder `{{event_id}}` nelle email.
+- **Click sui contatti** (WhatsApp, telefono, email): evento `contact_click` con tipo, URL e testo del link.
+- **Codice GTM facoltativo** (head e dopo `<body>`) per incollare lo snippet del sito, anche server-side; lo può cambiare solo chi ha il permesso di inserire HTML libero.
+- **Controlla la pagina iniziale**: segnala GTM caricato più volte, gtag.js o Meta Pixel diretti, script scritti a mano che ascoltano gli invii (lead contati due volte) e se lo script del plugin è nella pagina.
+- Lo script non dipende da jQuery per partire (funziona con WP Rocket "ritarda JS"), legge i valori prima che Elementor svuoti il form, non duplica lo stesso invio e traccia anche gli invii successivi dello stesso form. **Modalità debug**: eventi nella console (o `?lu3g_debug=1`). Non si carica nell'editor di Elementor.
+
 ## 1.4.0
 - **Log webhook**: il log registra le chiamate del **webhook di Elementor** (quello impostato nel form, es. SaveMyLeads): URL, dati inviati, stato HTTP, risposta, errore, durata, collegati alla richiesta; con **Reinvia** (stessi dati allo stesso URL). Il webhook continua a partire da Elementor come prima: il plugin lo osserva con i due agganci ufficiali (`elementor_pro/forms/webhooks/request_args`, che restituisce i dati invariati, e `elementor_pro/forms/webhooks/response`).
 - Tolto il **Webhook LU3G** (secondo webhook del plugin, un doppione di quello di Elementor): via la configurazione nel form, il webhook di default nelle impostazioni e "Invia test". Le vecchie chiamate restano nel log.
