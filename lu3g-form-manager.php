@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       LU3G Form Manager
  * Plugin URI:        https://github.com/lu3gofficial/lu3g-form-manager
- * Description:       Tutti i form di Elementor Pro in un unico pannello: destinatari, thank you page e webhook senza aprire Elementor, raccolta delle richieste con export CSV, log dei webhook, email personalizzate con anteprima ed eventi dei form per Google Tag Manager.
- * Version:           1.5.0
+ * Description:       Tutti i form di Elementor Pro in un unico pannello: destinatari, thank you page e webhook senza aprire Elementor, raccolta delle richieste con export CSV, log dei webhook ed email personalizzate con anteprima.
+ * Version:           1.6.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Requires Plugins:  elementor
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LU3G_FM_VERSION', '1.5.0' );
+define( 'LU3G_FM_VERSION', '1.6.0' );
 define( 'LU3G_FM_FILE', __FILE__ );
 define( 'LU3G_FM_URL', plugin_dir_url( __FILE__ ) );
 define( 'LU3G_FM_PATH', plugin_dir_path( __FILE__ ) );
@@ -42,10 +42,7 @@ function lu3g_fm_boot() {
 	require_once LU3G_FM_PATH . 'includes/class-scanner.php';
 	require_once LU3G_FM_PATH . 'includes/class-emails.php';
 	require_once LU3G_FM_PATH . 'includes/class-webhook.php';
-	require_once LU3G_FM_PATH . 'includes/class-tracking.php';
 	LU3G_FM_DB::init();
-	// Tracciamento: anche senza Elementor Pro (codice GTM e click sui contatti non devono sparire se Pro si spegne).
-	LU3G_FM_Tracking::init();
 
 	if ( is_multisite() ) {
 		require_once LU3G_FM_PATH . 'includes/class-network.php';

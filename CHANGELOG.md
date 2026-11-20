@@ -1,5 +1,8 @@
 # Registro delle modifiche
 
+## 1.6.0
+- Tolto il **tracciamento per Google Tag Manager** introdotto nella 1.5.0: via la scheda *Tracciamento* dei form, la sezione nelle Impostazioni (sito e rete), lo script nel sito, il codice GTM facoltativo, l'`event_id` nelle richieste e nel webhook e il placeholder `{{event_id}}`. Il plugin torna a non caricare nulla nelle pagine del sito; gli eventi dei form restano a GTM e agli script già presenti nei siti.
+
 ## 1.5.0
 - **Tracciamento per Google Tag Manager** (spento di serie; Impostazioni → *Tracciamento*, ereditabile dalla rete su Multisite). Dopo ogni invio riuscito il plugin mette nel `dataLayer` un evento uguale su tutti i siti: `event` (`lead_submit` o il nome scelto per il form, es. `contract_submit`), `event_id`, `form_name`, `form_id`, `page_url`, `page_title`, `site_domain` e, se attivo, `email` e `phone` anche dentro `user_data` (Enhanced Conversions, server-side). Il plugin non manda niente a Google o Meta: lo fa GTM.
 - **Scheda Tracciamento** in ogni form: acceso/spento, nome dell'evento, campi email e telefono (riconosciuti da soli dal tipo di campo, o scelti a mano), anteprima di quello che arriva nel dataLayer.

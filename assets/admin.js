@@ -511,41 +511,6 @@
 		} );
 	} );
 
-	/* ------------------------------------------------------------ tracciamento */
-
-	// Controllo della pagina iniziale (GTM doppi, script scritti a mano, script del plugin).
-	var trkCheck = page.querySelector( '[data-trk-check]' );
-	var trkResult = page.querySelector( '[data-trk-result]' );
-	if ( trkCheck && trkResult ) {
-		trkCheck.addEventListener( 'click', function () {
-			busy( trkCheck, true );
-			call( 'trk_check' ).then( function ( d ) {
-				trkResult.innerHTML = '';
-				( d.checks || [] ).forEach( function ( c ) {
-					var li = document.createElement( 'li' );
-					li.className = 'fm-check fm-check--' + c.level;
-					li.textContent = c.text;
-					trkResult.appendChild( li );
-				} );
-				trkResult.hidden = false;
-			} ).catch( function ( err ) {
-				toast( err.message, true );
-			} ).then( function () {
-				busy( trkCheck, false );
-			} );
-		} );
-	}
-
-	// Anteprima dell'evento: il nome cambia mentre lo scrivi.
-	var trkEvent = page.querySelector( '[data-trk-event]' );
-	var trkPreview = page.querySelector( '[data-trk-preview]' );
-	if ( trkEvent && trkPreview ) {
-		trkEvent.addEventListener( 'input', function () {
-			var name = trkEvent.value.replace( /[^A-Za-z0-9_\-.]/g, '' ) || trkPreview.getAttribute( 'data-default-event' );
-			trkPreview.textContent = trkPreview.textContent.replace( /"event": "[^"]*"/, '"event": "' + name + '"' );
-		} );
-	}
-
 	/* ------------------------------------------------------------ scansione */
 
 	var rescan = page.querySelector( '[data-rescan]' );

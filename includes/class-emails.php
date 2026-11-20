@@ -32,7 +32,6 @@ final class LU3G_FM_Emails {
 				'{{time}}'       => __( 'Ora', 'lu3g-form-manager' ),
 				'{{site_name}}'  => __( 'Nome del sito', 'lu3g-form-manager' ),
 				'{{ip}}'         => __( 'IP di chi ha compilato', 'lu3g-form-manager' ),
-				'{{event_id}}'   => __( 'ID dell\'evento (tracciamento)', 'lu3g-form-manager' ),
 			)
 		);
 	}
@@ -52,7 +51,6 @@ final class LU3G_FM_Emails {
 					'page_title' => '',
 					'ip'         => '',
 					'user_agent' => '',
-					'event_id'   => '',
 				),
 				$meta,
 				array( 'time' => $ts )
@@ -93,7 +91,6 @@ final class LU3G_FM_Emails {
 				'page_title' => $post_id ? get_the_title( $post_id ) : get_bloginfo( 'name' ),
 				'ip'         => '203.0.113.10',
 				'user_agent' => 'Mozilla/5.0 (anteprima)',
-				'event_id'   => '1732012345678_k3j9x2abc',
 			)
 		);
 	}
@@ -112,7 +109,6 @@ final class LU3G_FM_Emails {
 		$map['{{time}}']       = wp_date( get_option( 'time_format' ), $m['time'] );
 		$map['{{site_name}}']  = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
 		$map['{{ip}}']         = (string) $m['ip'];
-		$map['{{event_id}}']   = (string) ( $m['event_id'] ?? '' );
 		return $map;
 	}
 
